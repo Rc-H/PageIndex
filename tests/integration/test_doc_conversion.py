@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from pageindex.core.indexers.document import DocumentIndexer, IndexerDependencies
+from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
 from tests.helpers import FakeLLMClient
 
 

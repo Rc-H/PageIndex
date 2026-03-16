@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import httpx
 
-from pageindex.core.indexers.document import DocumentIndexer, IndexerDependencies
+from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
 from pageindex.infrastructure.llm import LLMClient, LLMProviderFactory
 from pageindex.infrastructure.settings import ServiceSettings, load_settings
 from pageindex.messages.models import CallbackTarget, IndexTaskRequest, RemoteFileReference, SubmittedFile

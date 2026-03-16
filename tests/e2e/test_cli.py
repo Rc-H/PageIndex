@@ -12,6 +12,7 @@ def test_cli_keeps_single_file_markdown_flow(monkeypatch, tmp_path):
     markdown.write_text("# Intro\nHello", encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("run_pageindex.configure_logging", lambda **kwargs: None)
     monkeypatch.setattr("pageindex.infrastructure.llm.LLMProviderFactory.create", lambda _settings: FakeLLMClient())
     monkeypatch.setattr(
         sys,
@@ -70,7 +71,8 @@ def test_cli_supports_docx_input(monkeypatch, tmp_path):
         return {"doc_name": "sample", "structure": [{"title": "Doc"}]}
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("pageindex.core.indexers.document.indexer.DocumentIndexer.index", _fake_index)
+    monkeypatch.setattr("run_pageindex.configure_logging", lambda **kwargs: None)
+    monkeypatch.setattr("pageindex.core.indexers.document_indexer.DocumentIndexer.index", _fake_index)
     monkeypatch.setattr("pageindex.infrastructure.llm.LLMProviderFactory.create", lambda _settings: FakeLLMClient())
     monkeypatch.setattr(
         sys,

@@ -139,7 +139,24 @@ You can generate the PageIndex tree structure with this open-source repo, or use
 
 # ⚙️ Package Usage
 
-You can follow these steps to generate a PageIndex tree from a PDF document.
+You can use this repo through the CLI, or directly through the Python entrypoint in
+[`pageindex/core/indexers/document_indexer.py`](./pageindex/core/indexers/document_indexer.py).
+The indexing flow is now organized as:
+
+1. `document_indexer.py`: unified entrypoint and file-type dispatch
+2. `adapters/`: format-specific adapters for PDF, Markdown, and Word
+3. `pipeline/step_01 ... step_06`: the ordered indexing lifecycle
+
+The main pipeline is:
+
+1. `step_01_outline_discovery`
+2. `step_02_outline_validation`
+3. `step_03_tree_construction`
+4. `step_04_section_expansion`
+5. `step_05_enrichment`
+6. `step_06_finalize`
+
+You can follow these steps to generate a PageIndex tree from a document.
 
 ### 1. Install dependencies
 
@@ -147,13 +164,18 @@ You can follow these steps to generate a PageIndex tree from a PDF document.
 pip3 install --upgrade -r requirements.txt
 ```
 
-### 2. Set your OpenAI API key
+### 2. Configure environment variables
 
-Create a `.env` file in the root directory and add your API key:
+Create a `.env` file in the root directory and add your API key plus service logging settings:
 
 ```bash
-CHATGPT_API_KEY=your_openai_key_here
+OPENAI_API_KEY=your_openai_key_here
+PAGEINDEX_SEQ_URL=http://localhost:5341
+# PAGEINDEX_SEQ_API_KEY=
+PAGEINDEX_LOG_LEVEL=INFO
 ```
+
+`PAGEINDEX_SEQ_URL` is required by the current CLI logging setup.
 
 ### 3. Run PageIndex on your PDF
 
@@ -164,23 +186,28 @@ python3 run_pageindex.py --pdf_path /path/to/your/document.pdf
 <details>
 <summary><strong>Optional parameters</strong></summary>
 <br>
-You can customize the processing with additional optional arguments:
+You can customize processing with these optional arguments:
 
 ```
 --model                 OpenAI model to use (default: gpt-4o-2024-11-20)
+--provider-type         LLM provider type (default: openai)
 --toc-check-pages       Pages to check for table of contents (default: 20)
 --max-pages-per-node    Max pages per node (default: 10)
 --max-tokens-per-node   Max tokens per node (default: 20000)
 --if-add-node-id        Add node ID (yes/no, default: yes)
 --if-add-node-summary   Add node summary (yes/no, default: yes)
---if-add-doc-description Add doc description (yes/no, default: yes)
+--if-add-doc-description Add doc description (yes/no, default: no)
+--if-add-node-text      Add node text to output (yes/no, default: no)
+--if-thinning           Enable markdown tree thinning (yes/no, default: no)
+--thinning-threshold    Minimum token threshold for markdown thinning (default: 5000)
+--summary-token-threshold Token threshold before summarizing a node (default: 200)
 ```
 </details>
 
 <details>
 <summary><strong>Markdown support</strong></summary>
 <br>
-We also provide markdown support for PageIndex. You can use the `-md_path` flag to generate a tree structure for a markdown file.
+Use `--md_path` to generate a tree structure from a Markdown file.
 
 ```bash
 python3 run_pageindex.py --md_path /path/to/your/document.md
@@ -188,6 +215,66 @@ python3 run_pageindex.py --md_path /path/to/your/document.md
 
 > Note: in this function, we use "#" to determine node heading and their levels. For example, "##" is level 2, "###" is level 3, etc. Make sure your markdown file is formatted correctly. If your Markdown file was converted from a PDF or HTML, we don't recommend using this function, since most existing conversion tools cannot preserve the original hierarchy. Instead, use our [PageIndex OCR](https://pageindex.ai/blog/ocr), which is designed to preserve the original hierarchy, to convert the PDF to a markdown file and then use this function.
 </details>
+
+<details>
+<summary><strong>Word support</strong></summary>
+<br>
+Use `--doc_path` to generate a tree structure from `.docx` or `.doc`.
+
+```bash
+python3 run_pageindex.py --doc_path /path/to/your/document.docx
+```
+
+For legacy `.doc` files, the indexer converts the file to `.docx` first using LibreOffice, then runs the normal Word indexing path.
+</details>
+
+## IndexingOptions
+
+Internally, CLI arguments and API `index_options` are normalized into the `IndexingOptions` dataclass in
+[`pageindex/core/indexers/document_indexer.py`](./pageindex/core/indexers/document_indexer.py).
+
+These fields control the indexing lifecycle:
+
+| Field | CLI flag | Purpose |
+| --- | --- | --- |
+| `model` | `--model` | The LLM model used by outline discovery, validation, summaries, and document description generation. |
+| `toc_check_page_num` | `--toc-check-pages` | How many early pages are scanned while looking for a PDF table of contents in `step_01_outline_discovery`. |
+| `max_page_num_each_node` | `--max-pages-per-node` | Maximum page span allowed before a PDF node becomes eligible for recursive sub-division in `step_04_section_expansion`. |
+| `max_token_num_each_node` | `--max-tokens-per-node` | Token threshold paired with `max_page_num_each_node` to decide whether a PDF node should be split further. |
+| `if_add_node_id` | `--if-add-node-id` | Whether to add stable `node_id` values into the final structure. |
+| `if_add_node_summary` | `--if-add-node-summary` | Whether to generate node-level summaries during `step_05_enrichment`. |
+| `if_add_doc_description` | `--if-add-doc-description` | Whether to generate a top-level document description from the final tree. |
+| `if_add_node_text` | `--if-add-node-text` | Whether to keep raw node text in the final output instead of using text only as an intermediate enrichment input. |
+| `if_thinning` | `--if-thinning` | Markdown-only option that merges overly small nodes before tree construction. |
+| `thinning_threshold` | `--thinning-threshold` | Minimum token size used by Markdown thinning. |
+| `summary_token_threshold` | `--summary-token-threshold` | Nodes below this token threshold keep their original text instead of forcing an LLM-generated summary. |
+| `doc_conversion_timeout_seconds` | not exposed in CLI | Timeout used when converting legacy `.doc` files to `.docx`. This comes from service settings rather than a command-line flag. |
+
+### Python usage
+
+You can also call the unified indexer directly:
+
+```python
+from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
+
+indexer = DocumentIndexer(
+    IndexerDependencies(
+        libreoffice_command="libreoffice",
+        doc_conversion_timeout_seconds=120,
+    )
+)
+
+result = await indexer.index(
+    file_path="/path/to/document.pdf",
+    provider_type="openai",
+    model="gpt-4o-2024-11-20",
+    index_options={
+        "if_add_node_summary": "yes",
+        "if_add_doc_description": "yes",
+    },
+    llm_client=client,
+)
+```
 
 <!-- 
 # ☁️ Improved Tree Generation with PageIndex OCR

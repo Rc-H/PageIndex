@@ -9,10 +9,13 @@ from pageindex.core.services.task_service import IndexTaskService
 from tests.helpers import FakeDocumentIndexer, FakeRemoteFileFetcher, SpyCallbackClient, fake_llm_client_factory
 
 
+TEST_SERVICE_SETTINGS = ServiceSettings(seq_url="http://seq.local")
+
+
 def _build_service(should_fail: bool = False):
     callback_client = SpyCallbackClient()
     service = IndexTaskService(
-        ServiceSettings(),
+        TEST_SERVICE_SETTINGS,
         callback_client=callback_client,
         remote_file_fetcher=FakeRemoteFileFetcher(),
         document_indexer=FakeDocumentIndexer(should_fail=should_fail),
@@ -31,7 +34,7 @@ def _wait_for_events(callback_client: SpyCallbackClient, expected_count: int):
 
 def test_multipart_single_file_returns_accepted_and_emits_callbacks():
     service, callback_client = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -62,7 +65,7 @@ def test_multipart_single_file_returns_accepted_and_emits_callbacks():
 
 def test_remote_url_submission_returns_accepted_and_emits_callbacks():
     service, callback_client = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -88,7 +91,7 @@ def test_remote_url_submission_returns_accepted_and_emits_callbacks():
 
 def test_failed_indexing_emits_failed_callback():
     service, callback_client = _build_service(should_fail=True)
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -111,7 +114,7 @@ def test_failed_indexing_emits_failed_callback():
 
 def test_missing_callback_url_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -130,7 +133,7 @@ def test_missing_callback_url_returns_bad_request():
 
 def test_missing_file_and_remote_url_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -149,7 +152,7 @@ def test_missing_file_and_remote_url_returns_bad_request():
 
 def test_file_and_remote_url_together_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -170,7 +173,7 @@ def test_file_and_remote_url_together_returns_bad_request():
 
 def test_invalid_index_options_json_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -191,7 +194,7 @@ def test_invalid_index_options_json_returns_bad_request():
 
 def test_invalid_callback_headers_json_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -212,7 +215,7 @@ def test_invalid_callback_headers_json_returns_bad_request():
 
 def test_invalid_remote_file_headers_json_returns_bad_request():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -234,7 +237,7 @@ def test_invalid_remote_file_headers_json_returns_bad_request():
 
 def test_json_request_requires_object_body():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -249,7 +252,7 @@ def test_json_request_requires_object_body():
 
 def test_json_request_rejects_non_object_callback_headers():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
@@ -270,7 +273,7 @@ def test_json_request_rejects_non_object_callback_headers():
 
 def test_multipart_request_rejects_non_object_index_options():
     service, _ = _build_service()
-    app = create_app(ServiceSettings(), task_service=service)
+    app = create_app(TEST_SERVICE_SETTINGS, task_service=service)
 
     with TestClient(app) as client:
         response = client.post(
