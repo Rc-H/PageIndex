@@ -1,15 +1,54 @@
-.ipynb_checkpoints
-__pycache__
-files
-index
-temp/*
+# macOS
+.DS_Store
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+.python-version
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+
+# Test, coverage, and type-checker caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# Build and packaging artifacts
+build/
+dist/
+site/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# IDE and editor files
+.idea/
+.vscode/
+
+# Project runtime outputs
+files/
+index/
+temp/
+notebook/
+SDK/
+log/
+logs/
+parts/
+json_results/
 chroma-collections.parquet
 chroma-embeddings.parquet
-.DS_Store
-.env*
-notebook
-SDK/*
-log/*
-logs/
-parts/*
-json_results/*
