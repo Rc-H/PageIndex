@@ -1,4 +1,4 @@
-from pageindex.core.indexers.markdown import (
+from pageindex.core.indexers.pipeline.step_01_outline_discovery import (
     extract_node_text_content,
     extract_nodes_from_markdown,
     tree_thinning_for_index,

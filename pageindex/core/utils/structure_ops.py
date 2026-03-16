@@ -1,8 +1,7 @@
 import asyncio
 import json
 
-from pageindex.core.indexers.prompts import load_prompt
-from pageindex.core.utils.json_utils import extract_json
+from pageindex.core.indexers.pipeline.prompts import load_prompt
 from pageindex.core.utils.llm_caller import call_llm, call_llm_async
 from pageindex.core.utils.pdf_reader import get_text_of_pdf_pages, get_text_of_pdf_pages_with_labels
 from pageindex.core.utils.token_counter import count_tokens
@@ -160,7 +159,7 @@ def add_node_text_with_labels(node, pdf_pages):
 
 
 async def generate_node_summary(node, model=None):
-    prompt = load_prompt("node_summary.txt", text=node['text'])
+    prompt = load_prompt("step_05_enrichment/prompts/node_summary.txt", text=node['text'])
     return await call_llm_async(model, prompt)
 
 
@@ -188,7 +187,7 @@ def create_clean_structure_for_description(structure):
 
 
 def generate_doc_description(structure, model=None):
-    prompt = load_prompt("doc_description.txt", structure=structure)
+    prompt = load_prompt("step_05_enrichment/prompts/doc_description.txt", structure=structure)
     return call_llm(model, prompt)
 
 

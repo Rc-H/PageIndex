@@ -11,6 +11,10 @@ class ServiceSettings:
     remote_file_timeout_seconds: int = 60
     callback_timeout_seconds: int = 30
     callback_retry_count: int = 3
+    seq_url: str = ""
+    seq_api_key: str | None = None
+    log_level: str = "INFO"
+    log_timeout_seconds: int = 5
 
 
 def load_service_settings() -> ServiceSettings:
@@ -20,4 +24,8 @@ def load_service_settings() -> ServiceSettings:
         remote_file_timeout_seconds=int(os.getenv("PAGEINDEX_REMOTE_FILE_TIMEOUT_SECONDS", "60")),
         callback_timeout_seconds=int(os.getenv("PAGEINDEX_CALLBACK_TIMEOUT_SECONDS", "30")),
         callback_retry_count=int(os.getenv("PAGEINDEX_CALLBACK_RETRY_COUNT", "3")),
+        seq_url=os.getenv("PAGEINDEX_SEQ_URL", ""),
+        seq_api_key=os.getenv("PAGEINDEX_SEQ_API_KEY") or None,
+        log_level=os.getenv("PAGEINDEX_LOG_LEVEL", "INFO"),
+        log_timeout_seconds=int(os.getenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "5")),
     )

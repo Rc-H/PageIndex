@@ -1,12 +1,21 @@
 import asyncio
 
-from pageindex.core.indexers.document import DocumentIndexer, IndexerDependencies
+import pytest
+
+from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
 from tests.helpers import FakeLLMClient, build_docx_bytes
 
 
 def test_docx_indexer_builds_tree_and_summary(tmp_path):
+    try:
+        payload = build_docx_bytes()
+    except RuntimeError as exc:
+        if "python-docx" in str(exc):
+            pytest.skip(str(exc))
+        raise
+
     path = tmp_path / "sample.docx"
-    path.write_bytes(build_docx_bytes())
+    path.write_bytes(payload)
 
     indexer = DocumentIndexer(IndexerDependencies(libreoffice_command="libreoffice", doc_conversion_timeout_seconds=1))
     result = asyncio.run(

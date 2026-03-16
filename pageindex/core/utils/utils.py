@@ -2,7 +2,6 @@
 # New code should import from the specific submodules directly.
 
 from pageindex.core.utils.token_counter import *  # noqa: F401,F403
-from pageindex.core.utils.json_utils import *  # noqa: F401,F403
 from pageindex.core.utils.llm_caller import *  # noqa: F401,F403
 from pageindex.core.utils.pdf_reader import *  # noqa: F401,F403
 from pageindex.core.utils.tree import *  # noqa: F401,F403

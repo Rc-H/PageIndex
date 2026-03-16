@@ -23,7 +23,7 @@ class FailingRemoteFileFetcher:
 def test_submit_reports_failed_result_when_remote_fetch_fails():
     callback_client = SpyCallbackClient()
     service = IndexTaskService(
-        ServiceSettings(),
+        ServiceSettings(seq_url="http://seq.local"),
         callback_client=callback_client,
         remote_file_fetcher=FailingRemoteFileFetcher(),
         llm_client_factory=fake_llm_client_factory,

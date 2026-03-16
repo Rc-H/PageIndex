@@ -1,3 +1,8 @@
-from pageindex.core.indexers import document, markdown, pdf, toc, validation
+from pageindex.core.indexers.document_indexer import (
+    DocumentIndexer,
+    IndexerDependencies,
+    IndexingOptions,
+    infer_file_type,
+)
 
-__all__ = ["document", "markdown", "pdf", "toc", "validation"]
+__all__ = ["DocumentIndexer", "IndexerDependencies", "IndexingOptions", "infer_file_type"]

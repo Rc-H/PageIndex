@@ -1,5 +1,5 @@
-from pageindex.core.indexers.document import infer_file_type
-from pageindex.core.indexers.document import docx_parser
+from pageindex.core.indexers import infer_file_type
+from pageindex.core.indexers.pipeline.step_01_outline_discovery import word_outline as docx_parser
 
 
 def test_infer_file_type_supports_common_extensions_case_insensitively():

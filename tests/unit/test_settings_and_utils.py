@@ -10,6 +10,10 @@ def test_load_settings_reads_environment(monkeypatch):
     monkeypatch.setenv("PAGEINDEX_REMOTE_FILE_TIMEOUT_SECONDS", "44")
     monkeypatch.setenv("PAGEINDEX_CALLBACK_TIMEOUT_SECONDS", "55")
     monkeypatch.setenv("PAGEINDEX_CALLBACK_RETRY_COUNT", "6")
+    monkeypatch.setenv("PAGEINDEX_SEQ_URL", "http://seq.local")
+    monkeypatch.setenv("PAGEINDEX_SEQ_API_KEY", "secret")
+    monkeypatch.setenv("PAGEINDEX_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "7")
 
     settings = load_settings().service
 
@@ -18,6 +22,10 @@ def test_load_settings_reads_environment(monkeypatch):
     assert settings.remote_file_timeout_seconds == 44
     assert settings.callback_timeout_seconds == 55
     assert settings.callback_retry_count == 6
+    assert settings.seq_url == "http://seq.local"
+    assert settings.seq_api_key == "secret"
+    assert settings.log_level == "DEBUG"
+    assert settings.log_timeout_seconds == 7
 
 
 def test_count_tokens_falls_back_when_model_encoding_is_unavailable(monkeypatch):

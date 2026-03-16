@@ -3,7 +3,8 @@ import asyncio
 import json
 import os
 
-from pageindex.core.indexers.document import DocumentIndexer, IndexerDependencies
+from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
+from pageindex.core.utils.logger import configure_logging
 from pageindex.infrastructure.llm import LLMProviderFactory
 from pageindex.infrastructure.settings import load_settings
 
@@ -37,6 +38,12 @@ def main():
         raise ValueError(f"Document not found: {target_path}")
 
     service_settings = load_settings().service
+    configure_logging(
+        seq_url=service_settings.seq_url,
+        seq_api_key=service_settings.seq_api_key,
+        level=service_settings.log_level,
+        timeout_seconds=service_settings.log_timeout_seconds,
+    )
     indexer = DocumentIndexer(
         IndexerDependencies(
             libreoffice_command=service_settings.libreoffice_command,
