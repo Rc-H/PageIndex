@@ -1,0 +1,10 @@
+Your task is to continue the table of contents json structure, directly output the remaining part of the json structure.
+The response should be in the following JSON format:
+
+The raw table of contents json structure is:
+{toc_content}
+
+The incomplete transformed table of contents json structure is:
+{last_complete}
+
+Please continue the json structure, directly output the remaining part of the json structure.
