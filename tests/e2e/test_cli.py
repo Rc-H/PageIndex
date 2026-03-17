@@ -21,8 +21,6 @@ def test_cli_keeps_single_file_markdown_flow(monkeypatch, tmp_path):
             "run_pageindex.py",
             "--md_path",
             str(markdown),
-            "--model",
-            "gpt-test",
         ],
     )
 
@@ -62,15 +60,15 @@ def test_cli_supports_docx_input(monkeypatch, tmp_path):
     docx.write_bytes(b"fake-docx")
     captured = {}
 
-    async def _fake_index(self, file_path, provider_type, model, index_options, llm_client):
+    async def _fake_index(self, file_path, index_options, llm_client):
         del self, llm_client
         captured["file_path"] = str(file_path)
-        captured["provider_type"] = provider_type
-        captured["model"] = model
         captured["index_options"] = index_options
         return {"doc_name": "sample", "structure": [{"title": "Doc"}]}
 
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("LLM_MODEL", "gpt-test")
     monkeypatch.setattr("run_pageindex.configure_logging", lambda **kwargs: None)
     monkeypatch.setattr("pageindex.core.indexers.document_indexer.DocumentIndexer.index", _fake_index)
     monkeypatch.setattr("pageindex.infrastructure.llm.LLMProviderFactory.create", lambda _settings: FakeLLMClient())
@@ -81,10 +79,6 @@ def test_cli_supports_docx_input(monkeypatch, tmp_path):
             "run_pageindex.py",
             "--doc_path",
             str(docx),
-            "--provider-type",
-            "openai_compatible",
-            "--model",
-            "gpt-test",
             "--summary-token-threshold",
             "17",
         ],
@@ -95,6 +89,4 @@ def test_cli_supports_docx_input(monkeypatch, tmp_path):
     output = tmp_path / "results" / "sample_structure.json"
     assert output.exists()
     assert captured["file_path"] == str(docx)
-    assert captured["provider_type"] == "openai_compatible"
-    assert captured["model"] == "gpt-test"
     assert captured["index_options"]["summary_token_threshold"] == 17

@@ -9,7 +9,7 @@ import httpx
 
 from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
 from pageindex.infrastructure.llm import LLMClient, LLMProviderFactory
-from pageindex.infrastructure.settings import ServiceSettings, load_settings
+from pageindex.infrastructure.settings import LLMSettings, ServiceSettings, load_settings
 from pageindex.messages.models import CallbackTarget, IndexTaskRequest, RemoteFileReference, SubmittedFile
 
 
@@ -63,12 +63,14 @@ class IndexTaskService:
     def __init__(
         self,
         settings: ServiceSettings,
+        llm_settings: LLMSettings | None = None,
         callback_client: CallbackClient | None = None,
         remote_file_fetcher: RemoteFileFetcher | None = None,
         document_indexer: DocumentIndexer | None = None,
-        llm_client_factory: Callable[[str], LLMClient] | None = None,
+        llm_client_factory: Callable[[], LLMClient] | None = None,
     ):
         self._settings = settings
+        self._llm_settings = llm_settings or load_settings().llm
         self._callback_client = callback_client or CallbackClient(
             timeout_seconds=settings.callback_timeout_seconds,
             retry_count=settings.callback_retry_count,
@@ -80,9 +82,11 @@ class IndexTaskService:
             IndexerDependencies(
                 libreoffice_command=settings.libreoffice_command,
                 doc_conversion_timeout_seconds=settings.doc_conversion_timeout_seconds,
+                provider_type=self._llm_settings.provider,
+                model=self._llm_settings.model,
             )
         )
-        self._llm_client_factory = llm_client_factory or (lambda _provider_type: LLMProviderFactory.create(load_settings().llm))
+        self._llm_client_factory = llm_client_factory or (lambda: LLMProviderFactory.create(self._llm_settings))
         self._background_tasks: set[asyncio.Task] = set()
 
     async def submit(self, task_request: IndexTaskRequest) -> None:
@@ -108,11 +112,9 @@ class IndexTaskService:
             with tempfile.TemporaryDirectory() as temp_dir:
                 local_path = Path(temp_dir) / submitted_file.original_name
                 local_path.write_bytes(submitted_file.content)
-                llm_client = self._llm_client_factory(task_request.provider_type)
+                llm_client = self._llm_client_factory()
                 result = await self._document_indexer.index(
                     file_path=local_path,
-                    provider_type=task_request.provider_type,
-                    model=task_request.model,
                     index_options=task_request.index_options,
                     llm_client=llm_client,
                 )
@@ -127,8 +129,8 @@ class IndexTaskService:
                     "progress_percent": 100,
                     "stage": "completed",
                     "file_name": submitted_file.original_name,
-                    "provider_type": task_request.provider_type,
-                    "model": task_request.model,
+                    "provider_type": self._llm_settings.provider,
+                    "model": self._llm_settings.model,
                     "result": result,
                     "error_message": None,
                 },
@@ -144,8 +146,8 @@ class IndexTaskService:
                         "progress_percent": 100,
                         "stage": "failed",
                         "file_name": file_name,
-                        "provider_type": task_request.provider_type,
-                        "model": task_request.model,
+                        "provider_type": self._llm_settings.provider,
+                        "model": self._llm_settings.model,
                         "result": None,
                         "error_message": str(exc),
                     },
@@ -170,8 +172,8 @@ class IndexTaskService:
                 "progress_percent": progress_percent,
                 "stage": stage,
                 "file_name": file_name,
-                "provider_type": task_request.provider_type,
-                "model": task_request.model,
+                "provider_type": self._llm_settings.provider,
+                "model": self._llm_settings.model,
                 "result": None,
                 "error_message": None,
             },

@@ -33,8 +33,6 @@ def test_submit_reports_failed_result_when_remote_fetch_fails():
         await service.submit(
             IndexTaskRequest(
                 task_id="task-remote-failed",
-                provider_type="openai",
-                model="gpt-test",
                 index_options={},
                 callback=CallbackTarget(url="https://omnix.local/callback", headers={}),
                 remote_file=RemoteFileReference(url="https://example.com/missing.md", headers={}),

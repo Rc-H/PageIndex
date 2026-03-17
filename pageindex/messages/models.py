@@ -25,8 +25,6 @@ class RemoteFileReference:
 @dataclass(frozen=True)
 class IndexTaskRequest:
     task_id: str
-    provider_type: str
-    model: str
     index_options: dict[str, Any]
     callback: CallbackTarget
     uploaded_file: SubmittedFile | None = None

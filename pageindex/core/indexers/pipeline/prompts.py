@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 
 
-_INDEXERS_ROOT = Path(__file__).parents[1]
+_INDEXERS_ROOT = Path(__file__).parent
 
 
 @lru_cache(maxsize=1)

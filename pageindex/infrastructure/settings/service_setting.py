@@ -15,6 +15,8 @@ class ServiceSettings:
     seq_api_key: str | None = None
     log_level: str = "INFO"
     log_timeout_seconds: int = 5
+    attachment_upload_domain: str = ""
+    attachment_upload_api_key: str | None = None
 
 
 def load_service_settings() -> ServiceSettings:
@@ -28,4 +30,6 @@ def load_service_settings() -> ServiceSettings:
         seq_api_key=os.getenv("PAGEINDEX_SEQ_API_KEY") or None,
         log_level=os.getenv("PAGEINDEX_LOG_LEVEL", "INFO"),
         log_timeout_seconds=int(os.getenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "5")),
+        attachment_upload_domain=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", ""),
+        attachment_upload_api_key=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY") or None,
     )

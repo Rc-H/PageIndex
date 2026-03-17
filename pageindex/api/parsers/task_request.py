@@ -16,13 +16,11 @@ async def parse_task_request(request: Request) -> IndexTaskRequest:
         payload, uploaded_file = await _parse_json_payload(request)
 
     task_id = payload.get("task_id")
-    provider_type = payload.get("provider_type")
-    model = payload.get("model")
     callback_url = payload.get("callback_url")
     remote_file_url = payload.get("remote_file_url")
 
-    if not task_id or not provider_type or not model or not callback_url:
-        raise HTTPException(status_code=400, detail="task_id, provider_type, model, and callback_url are required")
+    if not task_id or not callback_url:
+        raise HTTPException(status_code=400, detail="task_id and callback_url are required")
     if uploaded_file is None and not remote_file_url:
         raise HTTPException(status_code=400, detail="Either file or remote_file_url must be provided")
     if uploaded_file is not None and remote_file_url:
@@ -30,8 +28,6 @@ async def parse_task_request(request: Request) -> IndexTaskRequest:
 
     return IndexTaskRequest(
         task_id=str(task_id),
-        provider_type=str(provider_type),
-        model=str(model),
         index_options=payload.get("index_options") or {},
         callback=CallbackTarget(
             url=str(callback_url),
@@ -59,8 +55,6 @@ async def _parse_multipart_payload(request: Request) -> tuple[dict[str, Any], Su
 
     payload = {
         "task_id": form.get("task_id"),
-        "provider_type": form.get("provider_type"),
-        "model": form.get("model"),
         "index_options": _parse_json_field(form.get("index_options"), "index_options"),
         "callback_url": form.get("callback_url"),
         "callback_headers": _parse_json_field(form.get("callback_headers"), "callback_headers", default={}),

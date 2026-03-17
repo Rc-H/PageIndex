@@ -21,8 +21,6 @@ def test_docx_indexer_builds_tree_and_summary(tmp_path):
     result = asyncio.run(
         indexer.index(
             file_path=path,
-            provider_type="openai",
-            model="gpt-test",
             index_options={
                 "if_add_node_id": "yes",
                 "if_add_node_summary": "yes",

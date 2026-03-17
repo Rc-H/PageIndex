@@ -18,8 +18,6 @@ def test_doc_indexer_surfaces_conversion_failure(tmp_path):
         asyncio.run(
             indexer.index(
                 file_path=path,
-                provider_type="openai",
-                model="gpt-test",
                 index_options={},
                 llm_client=FakeLLMClient(),
             )

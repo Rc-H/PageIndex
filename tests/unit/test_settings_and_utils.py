@@ -1,10 +1,13 @@
 import pytest
 
+from pageindex.core.utils import image_upload
 from pageindex.infrastructure.settings import load_settings
 from pageindex.core.utils import token_counter, pdf_reader
 
 
 def test_load_settings_reads_environment(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4.1-mini")
     monkeypatch.setenv("PAGEINDEX_LIBREOFFICE_COMMAND", "/usr/local/bin/soffice")
     monkeypatch.setenv("PAGEINDEX_DOC_CONVERSION_TIMEOUT_SECONDS", "33")
     monkeypatch.setenv("PAGEINDEX_REMOTE_FILE_TIMEOUT_SECONDS", "44")
@@ -15,8 +18,12 @@ def test_load_settings_reads_environment(monkeypatch):
     monkeypatch.setenv("PAGEINDEX_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "7")
 
-    settings = load_settings().service
+    app_settings = load_settings()
+    llm_settings = app_settings.llm
+    settings = app_settings.service
 
+    assert llm_settings.provider == "openai_compatible"
+    assert llm_settings.model == "gpt-4.1-mini"
     assert settings.libreoffice_command == "/usr/local/bin/soffice"
     assert settings.doc_conversion_timeout_seconds == 33
     assert settings.remote_file_timeout_seconds == 44
@@ -26,6 +33,18 @@ def test_load_settings_reads_environment(monkeypatch):
     assert settings.seq_api_key == "secret"
     assert settings.log_level == "DEBUG"
     assert settings.log_timeout_seconds == 7
+    assert settings.attachment_upload_domain == ""
+    assert settings.attachment_upload_api_key is None
+
+
+def test_load_settings_reads_attachment_upload_environment(monkeypatch):
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", "http://localhost:8080")
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY", "demo-key")
+
+    app_settings = load_settings()
+
+    assert app_settings.service.attachment_upload_domain == "http://localhost:8080"
+    assert app_settings.service.attachment_upload_api_key == "demo-key"
 
 
 def test_count_tokens_falls_back_when_model_encoding_is_unavailable(monkeypatch):
@@ -90,3 +109,105 @@ def test_get_page_tokens_requires_pymupdf(monkeypatch):
 
     with pytest.raises(RuntimeError, match="pymupdf is required"):
         pdf_reader.get_page_tokens("sample.pdf", pdf_parser="PyMuPDF")
+
+
+def test_extract_ordered_page_content_includes_image_placeholders():
+    class _Page:
+        def get_text(self, mode):
+            assert mode == "dict"
+            return {
+                "blocks": [
+                    {"type": 0, "bbox": [0, 30, 100, 50], "lines": [{"spans": [{"text": "Second"}]}]},
+                    {"type": 1, "bbox": [0, 20, 100, 25]},
+                    {"type": 0, "bbox": [0, 10, 100, 15], "lines": [{"spans": [{"text": "First"}]}]},
+                ]
+            }
+
+    assert pdf_reader._extract_ordered_page_content(_Page()) == "First\n![image]\nSecond"
+
+
+def test_get_page_tokens_prefers_pymupdf_when_available(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pdf_reader, "pymupdf", object())
+    monkeypatch.setattr(pdf_reader, "get_token_encoder", lambda model: (lambda text: text.split()))
+    monkeypatch.setattr(pdf_reader, "_get_page_tokens_pymupdf", lambda pdf_path, encode: calls.append("pymupdf") or [("x", 1)])
+    monkeypatch.setattr(pdf_reader, "_get_page_tokens_pypdf2", lambda pdf_path, encode: calls.append("pypdf2") or [("y", 1)])
+
+    result = pdf_reader.get_page_tokens("sample.pdf")
+
+    assert result == [("x", 1)]
+    assert calls == ["pymupdf"]
+
+
+def test_upload_image_bytes_returns_uuid_markdown_and_optional_header(monkeypatch):
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", "http://localhost:8080")
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY", "secret-key")
+
+    image_upload.load_settings.cache_clear() if hasattr(image_upload.load_settings, "cache_clear") else None
+
+    captured = {}
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": {"uuid": "45296a84-ba5c-418a-add1-d5b7dff86bd4"}}
+
+    class _Client:
+        def __init__(self, timeout, headers=None):
+            captured["timeout"] = timeout
+            captured["headers"] = headers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, files):
+            captured["url"] = url
+            captured["files"] = files
+            return _Response()
+
+    monkeypatch.setattr(image_upload.httpx, "Client", _Client)
+
+    markdown = image_upload.upload_image_bytes(b"abc", "sample.png", "image/png")
+
+    assert markdown == "![image](45296a84-ba5c-418a-add1-d5b7dff86bd4)"
+    assert captured["url"] == "http://localhost:8080/api/Attachment/upload"
+    assert captured["headers"] == {"x-api-key": "secret-key"}
+
+
+def test_upload_image_bytes_omits_api_key_header_when_empty(monkeypatch):
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", "http://localhost:8080")
+    monkeypatch.delenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY", raising=False)
+
+    captured = {}
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": {"uuid": "uuid-only"}}
+
+    class _Client:
+        def __init__(self, timeout, headers=None):
+            captured["headers"] = headers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, files):
+            return _Response()
+
+    monkeypatch.setattr(image_upload.httpx, "Client", _Client)
+
+    markdown = image_upload.upload_image_bytes(b"abc", "sample.png", "image/png")
+
+    assert markdown == "![image](uuid-only)"
+    assert captured["headers"] is None

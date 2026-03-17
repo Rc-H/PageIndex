@@ -23,6 +23,7 @@ from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
 from pageindex.core.utils.logger import get_logger
 from pageindex.core.utils.pdf_reader import get_page_tokens, get_pdf_name
 from pageindex.core.utils.tree import write_node_id
+from pageindex.infrastructure.settings import load_settings
 
 
 async def _build_pdf_tree(page_list, opt, logger=None):
@@ -120,10 +121,14 @@ def page_index_main(doc, opt=None):
     if not is_valid_pdf:
         raise ValueError("Unsupported input type. Expected a PDF file path or BytesIO object.")
 
-    options = opt if isinstance(opt, IndexingOptions) else IndexingOptions.from_raw(vars(opt) if opt is not None else {})
+    llm_settings = load_settings().llm
+    raw_options = {"model": llm_settings.model}
+    if opt is not None and not isinstance(opt, IndexingOptions):
+        raw_options.update(vars(opt))
+    options = opt if isinstance(opt, IndexingOptions) else IndexingOptions.from_raw(raw_options)
     context = PipelineContext(
         source_path=doc,
-        provider_type="openai",
+        provider_type=llm_settings.provider,
         model=options.model,
         options=options,
         llm_client=None,
