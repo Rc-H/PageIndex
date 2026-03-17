@@ -169,12 +169,15 @@ pip3 install --upgrade -r requirements.txt
 Create a `.env` file in the root directory and add your API key plus service logging settings:
 
 ```bash
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-2024-11-20
 OPENAI_API_KEY=your_openai_key_here
 PAGEINDEX_SEQ_URL=http://localhost:5341
 # PAGEINDEX_SEQ_API_KEY=
 PAGEINDEX_LOG_LEVEL=INFO
 ```
 
+`LLM_PROVIDER` and `LLM_MODEL` now control the runtime provider/model for both CLI and API requests.
 `PAGEINDEX_SEQ_URL` is required by the current CLI logging setup.
 
 ### 3. Run PageIndex on your PDF
@@ -189,8 +192,6 @@ python3 run_pageindex.py --pdf_path /path/to/your/document.pdf
 You can customize processing with these optional arguments:
 
 ```
---model                 OpenAI model to use (default: gpt-4o-2024-11-20)
---provider-type         LLM provider type (default: openai)
 --toc-check-pages       Pages to check for table of contents (default: 20)
 --max-pages-per-node    Max pages per node (default: 10)
 --max-tokens-per-node   Max tokens per node (default: 20000)
@@ -237,7 +238,7 @@ These fields control the indexing lifecycle:
 
 | Field | CLI flag | Purpose |
 | --- | --- | --- |
-| `model` | `--model` | The LLM model used by outline discovery, validation, summaries, and document description generation. |
+| `model` | environment `LLM_MODEL` | The LLM model used by outline discovery, validation, summaries, and document description generation. |
 | `toc_check_page_num` | `--toc-check-pages` | How many early pages are scanned while looking for a PDF table of contents in `step_01_outline_discovery`. |
 | `max_page_num_each_node` | `--max-pages-per-node` | Maximum page span allowed before a PDF node becomes eligible for recursive sub-division in `step_04_section_expansion`. |
 | `max_token_num_each_node` | `--max-tokens-per-node` | Token threshold paired with `max_page_num_each_node` to decide whether a PDF node should be split further. |
@@ -256,23 +257,26 @@ You can also call the unified indexer directly:
 
 ```python
 from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
+from pageindex.infrastructure.llm import LLMProviderFactory
+from pageindex.infrastructure.settings import load_settings
 
+settings = load_settings()
 indexer = DocumentIndexer(
     IndexerDependencies(
-        libreoffice_command="libreoffice",
-        doc_conversion_timeout_seconds=120,
+        libreoffice_command=settings.service.libreoffice_command,
+        doc_conversion_timeout_seconds=settings.service.doc_conversion_timeout_seconds,
+        provider_type=settings.llm.provider,
+        model=settings.llm.model,
     )
 )
 
 result = await indexer.index(
     file_path="/path/to/document.pdf",
-    provider_type="openai",
-    model="gpt-4o-2024-11-20",
     index_options={
         "if_add_node_summary": "yes",
         "if_add_doc_description": "yes",
     },
-    llm_client=client,
+    llm_client=LLMProviderFactory.create(settings.llm),
 )
 ```
 

@@ -41,8 +41,6 @@ def test_multipart_single_file_returns_accepted_and_emits_callbacks():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "index_options": json.dumps({"if_add_node_summary": "yes"}),
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "callback_headers": json.dumps({"Authorization": "Bearer token"}),
@@ -72,8 +70,6 @@ def test_remote_url_submission_returns_accepted_and_emits_callbacks():
             "/v1/index-tasks",
             json={
                 "task_id": "task-remote",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "index_options": {"if_add_node_summary": "yes"},
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "callback_headers": {"Authorization": "Bearer token"},
@@ -98,8 +94,6 @@ def test_failed_indexing_emits_failed_callback():
             "/v1/index-tasks",
             data={
                 "task_id": "task-failed",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
             },
             files=[("file", ("sample.md", b"# Intro\nHello", "text/markdown"))],
@@ -121,8 +115,6 @@ def test_missing_callback_url_returns_bad_request():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
             },
             files=[("file", ("sample.md", b"# Intro\nHello", "text/markdown"))],
         )
@@ -140,8 +132,6 @@ def test_missing_file_and_remote_url_returns_bad_request():
             "/v1/index-tasks",
             json={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
             },
         )
@@ -159,8 +149,6 @@ def test_file_and_remote_url_together_returns_bad_request():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "remote_file_url": "https://example.com/test.md",
             },
@@ -180,8 +168,6 @@ def test_invalid_index_options_json_returns_bad_request():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "index_options": "{bad",
             },
@@ -201,8 +187,6 @@ def test_invalid_callback_headers_json_returns_bad_request():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "callback_headers": "{bad",
             },
@@ -222,8 +206,6 @@ def test_invalid_remote_file_headers_json_returns_bad_request():
             "/v1/index-tasks",
             data={
                 "task_id": "task-1",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "remote_file_url": "https://example.com/test.md",
                 "remote_file_headers": "{bad",
@@ -259,8 +241,6 @@ def test_json_request_rejects_non_object_callback_headers():
             "/v1/index-tasks",
             json={
                 "task_id": "task-headers",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "remote_file_url": "https://example.com/test.md",
                 "callback_headers": ["not", "a", "mapping"],
@@ -280,8 +260,6 @@ def test_multipart_request_rejects_non_object_index_options():
             "/v1/index-tasks",
             data={
                 "task_id": "task-options",
-                "provider_type": "openai",
-                "model": "gpt-test",
                 "callback_url": "http://omnix.local/api/PageIndex/callback",
                 "index_options": '["not-an-object"]',
             },

@@ -18,6 +18,8 @@ from pageindex.infrastructure.llm import LLMClient, use_llm_client
 class IndexerDependencies:
     libreoffice_command: str
     doc_conversion_timeout_seconds: int
+    provider_type: str = "openai"
+    model: str = "gpt-4o-2024-11-20"
 
 
 @dataclass(frozen=True)
@@ -62,14 +64,12 @@ class DocumentIndexer:
     async def index(
         self,
         file_path: str | Path,
-        provider_type: str,
-        model: str,
         index_options: dict[str, Any],
         llm_client: LLMClient,
     ) -> dict[str, Any]:
         path = Path(file_path)
         file_type = infer_file_type(path.name)
-        options = IndexingOptions.from_raw({"model": model, **index_options})
+        options = IndexingOptions.from_raw({"model": self._dependencies.model, **index_options})
 
         handler = {
             "pdf": self._index_pdf,
@@ -77,13 +77,12 @@ class DocumentIndexer:
             "docx": self._index_docx,
             "doc": self._index_doc,
         }[file_type]
-        return await handler(path, provider_type, options, llm_client)
+        return await handler(path, options, llm_client)
 
-    async def _index_pdf(self, path: Path, provider_type: str, options: IndexingOptions, llm_client: LLMClient):
-        del provider_type
+    async def _index_pdf(self, path: Path, options: IndexingOptions, llm_client: LLMClient):
         context = PipelineContext(
             source_path=path,
-            provider_type="openai",
+            provider_type=self._dependencies.provider_type,
             model=options.model,
             options=options,
             llm_client=llm_client,
@@ -92,10 +91,10 @@ class DocumentIndexer:
         with use_llm_client(llm_client):
             return await self._pdf_adapter.build(context)
 
-    async def _index_markdown(self, path: Path, provider_type: str, options: IndexingOptions, llm_client: LLMClient):
+    async def _index_markdown(self, path: Path, options: IndexingOptions, llm_client: LLMClient):
         context = PipelineContext(
             source_path=path,
-            provider_type=provider_type,
+            provider_type=self._dependencies.provider_type,
             model=options.model,
             options=options,
             llm_client=llm_client,
@@ -104,10 +103,10 @@ class DocumentIndexer:
         with use_llm_client(llm_client):
             return await self._markdown_adapter.build(context)
 
-    async def _index_docx(self, path: Path, provider_type: str, options: IndexingOptions, llm_client: LLMClient):
+    async def _index_docx(self, path: Path, options: IndexingOptions, llm_client: LLMClient):
         context = PipelineContext(
             source_path=path,
-            provider_type=provider_type,
+            provider_type=self._dependencies.provider_type,
             model=options.model,
             options=options,
             llm_client=llm_client,
@@ -116,7 +115,7 @@ class DocumentIndexer:
         with use_llm_client(llm_client):
             return await self._word_adapter.build(context)
 
-    async def _index_doc(self, path: Path, provider_type: str, options: IndexingOptions, llm_client: LLMClient):
+    async def _index_doc(self, path: Path, options: IndexingOptions, llm_client: LLMClient):
         with tempfile.TemporaryDirectory() as temp_dir:
             process = subprocess.run(
                 [
@@ -141,4 +140,4 @@ class DocumentIndexer:
             converted_path = Path(temp_dir) / f"{path.stem}.docx"
             if not converted_path.exists():
                 raise RuntimeError("DOC conversion did not produce a DOCX file")
-            return await self._index_docx(converted_path, provider_type, options, llm_client)
+            return await self._index_docx(converted_path, options, llm_client)

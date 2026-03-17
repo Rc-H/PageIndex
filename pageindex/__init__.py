@@ -14,10 +14,13 @@ async def md_to_tree(*args, **kwargs):
     from pageindex.core.indexers.adapters.markdown import MarkdownAdapter
     from pageindex.core.indexers.document_indexer import IndexingOptions
     from pageindex.core.indexers.pipeline.context import PipelineContext
+    from pageindex.infrastructure.settings import load_settings
+
+    llm_settings = load_settings().llm
 
     options = IndexingOptions.from_raw(
         {
-            "model": kwargs.get("model"),
+            "model": llm_settings.model,
             "if_thinning": "yes" if kwargs.get("if_thinning") else "no",
             "thinning_threshold": kwargs.get("min_token_threshold"),
             "if_add_node_summary": kwargs.get("if_add_node_summary", "no"),
@@ -29,7 +32,7 @@ async def md_to_tree(*args, **kwargs):
     )
     context = PipelineContext(
         source_path=kwargs["md_path"] if "md_path" in kwargs else args[0],
-        provider_type="openai",
+        provider_type=llm_settings.provider,
         model=options.model,
         options=options,
         llm_client=None,

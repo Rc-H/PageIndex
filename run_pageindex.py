@@ -14,8 +14,6 @@ def main():
     parser.add_argument("--pdf_path", type=str, help="Path to the PDF file")
     parser.add_argument("--md_path", type=str, help="Path to the Markdown file")
     parser.add_argument("--doc_path", type=str, help="Path to the Word file (.docx or .doc)")
-    parser.add_argument("--model", type=str, default="gpt-4o-2024-11-20", help="Model to use")
-    parser.add_argument("--provider-type", type=str, default="openai", help="LLM provider type")
 
     parser.add_argument("--toc-check-pages", type=int, default=20, help="Number of TOC pages to inspect")
     parser.add_argument("--max-pages-per-node", type=int, default=10, help="Maximum pages per node")
@@ -37,7 +35,9 @@ def main():
     if not os.path.isfile(target_path):
         raise ValueError(f"Document not found: {target_path}")
 
-    service_settings = load_settings().service
+    settings = load_settings()
+    service_settings = settings.service
+    llm_settings = settings.llm
     configure_logging(
         seq_url=service_settings.seq_url,
         seq_api_key=service_settings.seq_api_key,
@@ -48,6 +48,8 @@ def main():
         IndexerDependencies(
             libreoffice_command=service_settings.libreoffice_command,
             doc_conversion_timeout_seconds=service_settings.doc_conversion_timeout_seconds,
+            provider_type=llm_settings.provider,
+            model=llm_settings.model,
         )
     )
     index_options = {
@@ -66,10 +68,8 @@ def main():
     result = asyncio.run(
         indexer.index(
             file_path=target_path,
-            provider_type=args.provider_type,
-            model=args.model,
             index_options=index_options,
-            llm_client=LLMProviderFactory.create(load_settings().llm),
+            llm_client=LLMProviderFactory.create(llm_settings),
         )
     )
 

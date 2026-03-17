@@ -7,6 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class LLMSettings:
     provider: str = "openai"
+    model: str = "gpt-4o-2024-11-20"
     # OpenAI
     openai_api_key: str | None = None
     openai_base_url: str | None = None
@@ -21,6 +22,7 @@ class LLMSettings:
 def load_llm_settings() -> LLMSettings:
     return LLMSettings(
         provider=os.getenv("LLM_PROVIDER", "openai"),
+        model=os.getenv("LLM_MODEL", "gpt-4o-2024-11-20"),
         openai_api_key=os.getenv("CHATGPT_API_KEY") or os.getenv("OPENAI_API_KEY"),
         openai_base_url=os.getenv("OPENAI_BASE_URL"),
         azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
+from pageindex.api.openapi import INDEX_TASK_REQUEST_BODY
 from pageindex.api.parsers import parse_task_request
 from pageindex.core.services.task_service import IndexTaskService
 
@@ -17,7 +18,11 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/v1/index-tasks", status_code=202)
+@router.post(
+    "/v1/index-tasks",
+    status_code=202,
+    openapi_extra={"requestBody": INDEX_TASK_REQUEST_BODY},
+)
 async def create_task(
     request: Request,
     task_service: IndexTaskService = Depends(get_task_service),

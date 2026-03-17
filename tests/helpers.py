@@ -25,8 +25,7 @@ class FakeLLMClient(LLMClient):
         return "fake-response"
 
 
-def fake_llm_client_factory(provider_type: str) -> LLMClient:
-    del provider_type
+def fake_llm_client_factory() -> LLMClient:
     return FakeLLMClient()
 
 
@@ -55,8 +54,8 @@ class FakeDocumentIndexer:
     def __init__(self, should_fail: bool = False):
         self.should_fail = should_fail
 
-    async def index(self, file_path, provider_type, model, index_options, llm_client):
-        del provider_type, model, index_options, llm_client
+    async def index(self, file_path, index_options, llm_client):
+        del index_options, llm_client
         if self.should_fail:
             raise RuntimeError("index failed")
         return {
