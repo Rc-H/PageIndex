@@ -10,6 +10,7 @@ from pageindex.core.indexers.pipeline.step_05_enrichment import (
     generate_summaries_for_markdown_structure,
 )
 from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
+from pageindex.core.utils.token_counter import count_tokens
 from pageindex.core.utils.tree import write_node_id
 
 
@@ -58,4 +59,11 @@ class WordAdapter:
                 model=context.model,
             )
 
-        return build_index_result(doc_name=path.stem, structure=tree_structure, doc_description=doc_description)
+        full_text = "\n\n".join(str(node.get("text", "")) for node in flat_nodes if node.get("text"))
+        return build_index_result(
+            doc_name=path.stem,
+            structure=tree_structure,
+            doc_description=doc_description,
+            char_count=len(full_text),
+            token_count=count_tokens(full_text, model=context.model),
+        )

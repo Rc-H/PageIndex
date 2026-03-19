@@ -17,6 +17,7 @@ from pageindex.core.indexers.pipeline.step_05_enrichment import (
     generate_summaries_for_markdown_structure,
 )
 from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
+from pageindex.core.utils.token_counter import count_tokens
 from pageindex.core.utils.tree import write_node_id
 
 
@@ -75,4 +76,10 @@ class MarkdownAdapter:
             doc_description = generate_doc_description(clean_structure, model=context.model)
 
         doc_name = context.doc_name or os.path.splitext(os.path.basename(md_path))[0]
-        return build_index_result(doc_name=doc_name, structure=tree_structure, doc_description=doc_description)
+        return build_index_result(
+            doc_name=doc_name,
+            structure=tree_structure,
+            doc_description=doc_description,
+            char_count=len(markdown_content),
+            token_count=count_tokens(markdown_content, model=context.model),
+        )

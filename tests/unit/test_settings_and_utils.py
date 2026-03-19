@@ -1,6 +1,7 @@
 import pytest
 
 from pageindex.core.utils import image_upload
+from pageindex.core.indexers.pipeline.step_06_finalize.result import build_index_result
 from pageindex.infrastructure.settings import load_settings
 from pageindex.core.utils import token_counter, pdf_reader
 
@@ -17,6 +18,8 @@ def test_load_settings_reads_environment(monkeypatch):
     monkeypatch.setenv("PAGEINDEX_SEQ_API_KEY", "secret")
     monkeypatch.setenv("PAGEINDEX_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "7")
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", "")
+    monkeypatch.setenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY", "")
 
     app_settings = load_settings()
     llm_settings = app_settings.llm
@@ -126,6 +129,35 @@ def test_extract_ordered_page_content_includes_image_placeholders():
     assert pdf_reader._extract_ordered_page_content(_Page()) == "First\n![image]\nSecond"
 
 
+def test_extract_page_blocks_preserves_order_and_offsets():
+    class _Page:
+        def get_text(self, mode):
+            assert mode == "dict"
+            return {
+                "blocks": [
+                    {"type": 0, "bbox": [0, 30, 100, 50], "lines": [{"spans": [{"text": "Second"}]}]},
+                    {"type": 1, "bbox": [0, 20, 100, 25]},
+                    {"type": 0, "bbox": [0, 10, 100, 15], "lines": [{"spans": [{"text": "First"}]}]},
+                ]
+            }
+
+    blocks, next_block_no, next_offset = pdf_reader._extract_page_blocks(
+        _Page(),
+        page_no=2,
+        block_no_start=4,
+        doc_char_offset=10,
+        encode=lambda text: text.split(),
+    )
+
+    assert [block["block_no"] for block in blocks] == [4, 5, 6]
+    assert [block["raw_content"] for block in blocks] == ["First", "![image]", "Second"]
+    assert [block["page_no"] for block in blocks] == [2, 2, 2]
+    assert [block["char_start_in_doc"] for block in blocks] == [10, 16, 25]
+    assert [block["metadata"]["type"] for block in blocks] == ["text", "image", "text"]
+    assert next_block_no == 7
+    assert next_offset == 31
+
+
 def test_get_page_tokens_prefers_pymupdf_when_available(monkeypatch):
     calls = []
     monkeypatch.setattr(pdf_reader, "pymupdf", object())
@@ -137,6 +169,28 @@ def test_get_page_tokens_prefers_pymupdf_when_available(monkeypatch):
 
     assert result == [("x", 1)]
     assert calls == ["pymupdf"]
+
+
+def test_build_index_result_includes_optional_extract_and_stats():
+    result = build_index_result(
+        doc_name="sample",
+        structure=[{"title": "Intro"}],
+        doc_description="summary",
+        page_count=3,
+        char_count=120,
+        token_count=40,
+        extract={"blocks": [{"block_no": 1}]},
+    )
+
+    assert result == {
+        "doc_name": "sample",
+        "structure": [{"title": "Intro"}],
+        "doc_description": "summary",
+        "page_count": 3,
+        "char_count": 120,
+        "token_count": 40,
+        "extract": {"blocks": [{"block_no": 1}]},
+    }
 
 
 def test_upload_image_bytes_returns_uuid_markdown_and_optional_header(monkeypatch):
