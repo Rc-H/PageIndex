@@ -21,9 +21,11 @@ from pageindex.core.indexers.pipeline.step_05_enrichment import (
 )
 from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
 from pageindex.core.utils.logger import get_logger
-from pageindex.core.utils.pdf_reader import get_page_tokens, get_pdf_name
+from pageindex.core.utils.pdf_reader import extract_pdf_blocks, get_page_tokens, get_pdf_name
 from pageindex.core.utils.tree import write_node_id
 from pageindex.infrastructure.settings import load_settings
+
+PAGEINDEX_NODE_ID_KEY = "pageindex_node_id"
 
 
 async def _build_pdf_tree(page_list, opt, logger=None):
@@ -66,49 +68,102 @@ async def _build_pdf_tree(page_list, opt, logger=None):
 
 class PdfAdapter:
     async def build(self, context: PipelineContext):
-        logger = get_logger(
-            "pageindex.pdf",
-            doc_name=context.doc_name,
-            source_path=str(context.source_path),
-            provider_type=context.provider_type,
-            model=context.model,
-        )
-        page_list = get_page_tokens(context.source_path)
-        context.page_list = page_list
-        context.logger = logger
+        logger, page_list = _initialize_pdf_context(context)
+        structure = await _build_pdf_structure(context, page_list, logger)
+        blocks = _build_pdf_blocks(context, structure)
+        await _enrich_pdf_structure(context, structure, page_list)
+        doc_description = await _build_pdf_doc_description(context, structure, page_list)
+        return _build_pdf_result(context, structure, blocks, doc_description, page_list)
 
-        logger.info({"total_page_number": len(page_list)})
-        logger.info({"total_token": sum(page[1] for page in page_list)})
 
-        structure = await _build_pdf_tree(page_list, context.options, logger=logger)
+def _initialize_pdf_context(context: PipelineContext):
+    logger = get_logger(
+        "pageindex.pdf",
+        doc_name=context.doc_name,
+        source_path=str(context.source_path),
+        provider_type=context.provider_type,
+        model=context.model,
+    )
+    page_list = get_page_tokens(context.source_path)
+    context.page_list = page_list
+    context.logger = logger
 
-        if context.options.if_add_node_id == "yes":
-            write_node_id(structure)
-        if context.options.if_add_node_text == "yes":
+    logger.info({"total_page_number": len(page_list)})
+    logger.info({"total_token": sum(page[1] for page in page_list)})
+    return logger, page_list
+
+
+async def _build_pdf_structure(context: PipelineContext, page_list, logger):
+    structure = await _build_pdf_tree(page_list, context.options, logger=logger)
+    if context.options.if_add_node_id == "yes":
+        write_node_id(structure)
+    return structure
+
+
+def _build_pdf_blocks(context: PipelineContext, structure):
+    blocks = extract_pdf_blocks(context.source_path, model=context.model)
+    _attach_block_node_ids(blocks, structure)
+    return blocks
+
+
+async def _enrich_pdf_structure(context: PipelineContext, structure, page_list):
+    if context.options.if_add_node_text == "yes":
+        add_node_text(structure, page_list)
+    if context.options.if_add_node_summary == "yes":
+        if context.options.if_add_node_text == "no":
             add_node_text(structure, page_list)
-        if context.options.if_add_node_summary == "yes":
-            if context.options.if_add_node_text == "no":
-                add_node_text(structure, page_list)
-            await generate_summaries_for_structure(structure, model=context.model)
-            if context.options.if_add_node_text == "no":
-                remove_structure_text(structure)
+        await generate_summaries_for_structure(structure, model=context.model)
+        if context.options.if_add_node_text == "no":
+            remove_structure_text(structure)
 
-        doc_description = None
-        if context.options.if_add_doc_description == "yes":
-            if context.options.if_add_node_summary == "no":
-                if context.options.if_add_node_text == "no":
-                    add_node_text(structure, page_list)
-                await generate_summaries_for_structure(structure, model=context.model)
-                if context.options.if_add_node_text == "no":
-                    remove_structure_text(structure)
-            clean_structure = create_clean_structure_for_description(structure)
-            doc_description = generate_doc_description(clean_structure, model=context.model)
 
-        return build_index_result(
-            doc_name=context.doc_name or get_pdf_name(context.source_path),
-            structure=structure,
-            doc_description=doc_description,
-        )
+async def _build_pdf_doc_description(context: PipelineContext, structure, page_list):
+    if context.options.if_add_doc_description != "yes":
+        return None
+
+    if context.options.if_add_node_summary == "no":
+        if context.options.if_add_node_text == "no":
+            add_node_text(structure, page_list)
+        await generate_summaries_for_structure(structure, model=context.model)
+        if context.options.if_add_node_text == "no":
+            remove_structure_text(structure)
+
+    clean_structure = create_clean_structure_for_description(structure)
+    return generate_doc_description(clean_structure, model=context.model)
+
+
+def _build_pdf_result(context: PipelineContext, structure, blocks, doc_description, page_list):
+    return build_index_result(
+        doc_name=context.doc_name or get_pdf_name(context.source_path),
+        structure=structure,
+        doc_description=doc_description,
+        page_count=len(page_list),
+        char_count=(blocks[-1]["char_end_in_doc"] + 1) if blocks else 0,
+        token_count=sum(block["token_count"] for block in blocks),
+        extract={"blocks": blocks},
+    )
+
+
+def _attach_block_node_ids(blocks, structure):
+    for block in blocks:
+        node_id = _find_deepest_covering_node_id(structure, block["page_no"])
+        if node_id:
+            block[PAGEINDEX_NODE_ID_KEY] = node_id
+
+
+def _find_deepest_covering_node_id(nodes, page_no):
+    best_match = None
+    for node in nodes:
+        start_index = node.get("start_index")
+        end_index = node.get("end_index")
+        if start_index is None or end_index is None or page_no < start_index or page_no > end_index:
+            continue
+
+        child_match = _find_deepest_covering_node_id(node.get("nodes", []), page_no)
+        if child_match:
+            return child_match
+        best_match = node.get("node_id")
+    return best_match
 
 
 def page_index_main(doc, opt=None):

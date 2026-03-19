@@ -112,6 +112,29 @@ def get_text_of_pdf_pages_with_labels(pdf_pages, start_page, end_page):
     return text
 
 
+def extract_pdf_blocks(pdf_path, model="gpt-4o-2024-11-20"):
+    encode = _build_encoder(model)
+    mupdf = _require_pymupdf()
+    if isinstance(pdf_path, BytesIO):
+        doc = mupdf.open(stream=pdf_path, filetype="pdf")
+    else:
+        doc = mupdf.open(pdf_path)
+
+    blocks = []
+    block_no = 1
+    char_offset_in_doc = 0
+    for page_no, page in enumerate(doc, start=1):
+        page_blocks, block_no, char_offset_in_doc = _extract_page_blocks(
+            page,
+            page_no=page_no,
+            block_no_start=block_no,
+            doc_char_offset=char_offset_in_doc,
+            encode=encode,
+        )
+        blocks.extend(page_blocks)
+    return blocks
+
+
 # --- private helpers ---
 
 def _build_encoder(model):
@@ -141,8 +164,60 @@ def _get_page_tokens_pypdf2(pdf_path, encode):
 
 
 def _extract_ordered_page_content(page) -> str:
+    blocks = _get_ordered_blocks(page)
+    return "\n".join(part for part in (_render_ordered_block(block) for block in blocks) if part).strip()
+
+
+def _extract_page_blocks(page, page_no: int, block_no_start: int, doc_char_offset: int, encode):
+    ordered_blocks = _get_ordered_blocks(page)
+    rendered_blocks = [(_render_ordered_block(block), block) for block in ordered_blocks]
+    non_empty_blocks = [(raw_content, block) for raw_content, block in rendered_blocks if raw_content]
+    page_blocks = []
+    page_char_offset = 0
+    next_block_no = block_no_start
+
+    for emitted_index, (raw_content, block) in enumerate(non_empty_blocks):
+        block_order_in_page = emitted_index + 1
+        normalized_text = _normalize_block_text(raw_content)
+        metadata = {
+            "type": "image" if block.get("type") == 1 else "text",
+            "bbox": block.get("bbox"),
+        }
+
+        block_char_count = len(normalized_text)
+        page_blocks.append(
+            {
+                "block_no": next_block_no,
+                "page_no": page_no,
+                "block_order_in_page": block_order_in_page,
+                "start_index": page_no,
+                "end_index": page_no,
+                "raw_content": raw_content,
+                "normalized_text": normalized_text,
+                "display_text": raw_content,
+                "char_start_in_doc": doc_char_offset,
+                "char_end_in_doc": doc_char_offset + block_char_count - 1 if block_char_count else doc_char_offset,
+                "char_start_in_page": page_char_offset,
+                "char_end_in_page": page_char_offset + block_char_count - 1 if block_char_count else page_char_offset,
+                "token_count": len(encode(normalized_text)),
+                "metadata": metadata,
+            }
+        )
+
+        next_block_no += 1
+        doc_char_offset += block_char_count
+        page_char_offset += block_char_count
+
+        if emitted_index < len(non_empty_blocks) - 1:
+            doc_char_offset += 1
+            page_char_offset += 1
+
+    return page_blocks, next_block_no, doc_char_offset
+
+
+def _get_ordered_blocks(page):
     blocks = page.get_text("dict").get("blocks", [])
-    ordered_blocks = sorted(
+    return sorted(
         blocks,
         key=lambda block: (
             round(block.get("bbox", [0, 0, 0, 0])[1], 2),
@@ -150,16 +225,14 @@ def _extract_ordered_page_content(page) -> str:
         ),
     )
 
-    parts: list[str] = []
-    for block in ordered_blocks:
-        block_type = block.get("type")
-        if block_type == 0:
-            text = _extract_text_from_pymupdf_block(block)
-            if text:
-                parts.append(text)
-        elif block_type == 1:
-            parts.append(_extract_image_markdown_from_pymupdf_block(block))
-    return "\n".join(parts).strip()
+
+def _render_ordered_block(block: dict) -> str:
+    block_type = block.get("type")
+    if block_type == 0:
+        return _extract_text_from_pymupdf_block(block)
+    if block_type == 1:
+        return _extract_image_markdown_from_pymupdf_block(block)
+    return ""
 
 
 def _extract_text_from_pymupdf_block(block: dict) -> str:
@@ -180,3 +253,7 @@ def _extract_image_markdown_from_pymupdf_block(block: dict) -> str:
         return "![image]"
     ext = block.get("ext") or "png"
     return upload_image_bytes(image_bytes, filename=f"image.{ext}", content_type=f"image/{ext}") or "![image]"
+
+
+def _normalize_block_text(text: str) -> str:
+    return text.strip()
