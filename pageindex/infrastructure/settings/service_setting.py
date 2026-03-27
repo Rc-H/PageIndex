@@ -17,6 +17,7 @@ class ServiceSettings:
     log_timeout_seconds: int = 5
     attachment_upload_domain: str = ""
     attachment_upload_api_key: str | None = None
+    page_preview_dpi: int = 144
 
 
 def load_service_settings() -> ServiceSettings:
@@ -32,4 +33,5 @@ def load_service_settings() -> ServiceSettings:
         log_timeout_seconds=int(os.getenv("PAGEINDEX_LOG_TIMEOUT_SECONDS", "5")),
         attachment_upload_domain=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", ""),
         attachment_upload_api_key=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY") or None,
+        page_preview_dpi=int(os.getenv("PAGEINDEX_PAGE_PREVIEW_DPI", "144")),
     )

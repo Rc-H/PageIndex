@@ -28,3 +28,14 @@ def load_settings() -> Settings:
         llm=load_llm_settings(),
         service=load_service_settings(),
     )
+
+
+def resolve_model_name(model: str | None = None) -> str:
+    explicit = (model or "").strip()
+    if explicit:
+        return explicit
+
+    configured = load_settings().llm.model.strip()
+    if configured:
+        return configured
+    raise ValueError("LLM_MODEL must be configured")

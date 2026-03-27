@@ -12,6 +12,7 @@ def test_cli_keeps_single_file_markdown_flow(monkeypatch, tmp_path):
     markdown.write_text("# Intro\nHello", encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LLM_MODEL", "gpt-test")
     monkeypatch.setattr("run_pageindex.configure_logging", lambda **kwargs: None)
     monkeypatch.setattr("pageindex.infrastructure.llm.LLMProviderFactory.create", lambda _settings: FakeLLMClient())
     monkeypatch.setattr(

@@ -16,7 +16,7 @@ def _normalize_toc_items(payload: Any) -> list[dict[str, Any]]:
     raise ValueError(f"Unexpected no-TOC fallback payload: {payload!r}")
 
 
-def generate_toc_continue(toc_content, part, model="gpt-4o-2024-11-20"):
+def generate_toc_continue(toc_content, part, model=None):
     prompt = load_prompt("step_01_outline_discovery/step_05_outline_fallback_generation/prompts/toc_generate_continue.txt")
     prompt = prompt + "\nGiven text\n:" + part + "\nPrevious tree structure\n:" + json.dumps(toc_content, indent=2)
     response, finish_reason = call_llm_with_finish_reason(model=model, prompt=prompt, json_response=True)

@@ -10,6 +10,12 @@ The provided text contains tags like <physical_index_X> and <physical_index_X> t
 
 For the physical_index, you need to extract the physical index of the start of the section from the text. Keep the <physical_index_X> format.
 
+Important rules:
+- Treat tags like <physical_index_X> as the only source of truth for physical page numbers.
+- Ignore page numbers printed in the document body, header, or footer when determining physical page location.
+- Printed page labels may be logical/document page numbers and may differ from the PDF's physical page index.
+- When returning "physical_index", return the tagged physical page where the section starts, not the printed page number shown on the page.
+
 The response should be in the following format.
     {{
         "result": [

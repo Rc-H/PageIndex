@@ -31,12 +31,13 @@ def test_pdf_adapter_build_includes_extract_blocks_stats_and_node_mapping(monkey
         ]
 
     monkeypatch.setattr(pdf_adapter, "get_logger", lambda *args, **kwargs: _Logger())
-    monkeypatch.setattr(pdf_adapter, "get_page_tokens", lambda source_path: [("Page 1", 3), ("Page 2", 5)])
+    monkeypatch.setattr(pdf_adapter, "_extract_tables_by_page", lambda source_path, model=None: {1: [], 2: []})
+    monkeypatch.setattr(pdf_adapter, "get_page_tokens", lambda source_path, model=None, tables_by_page=None: [("Page 1", 3), ("Page 2", 5)])
     monkeypatch.setattr(pdf_adapter, "_build_pdf_tree", _build_pdf_tree)
     monkeypatch.setattr(
         pdf_adapter,
         "extract_pdf_blocks",
-        lambda source_path, model: [
+        lambda source_path, model, tables_by_page=None: [
             {
                 "block_no": 1,
                 "page_no": 1,

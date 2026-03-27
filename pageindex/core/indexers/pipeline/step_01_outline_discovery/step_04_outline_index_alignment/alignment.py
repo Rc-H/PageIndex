@@ -1,24 +1,67 @@
+import logging
 import json
 
 from pageindex.core.indexers.pipeline.prompts import load_prompt
 from pageindex.core.utils.llm_caller import call_llm
+from pageindex.core.utils.structure_ops import convert_physical_index_to_int
+
+logger = logging.getLogger(__name__)
+
+
+def _log_outline_item_types(name, items):
+    if not isinstance(items, list):
+        logger.warning("%s is not a list: type=%s value=%r", name, type(items).__name__, items)
+        return
+
+    bad_items = [
+        {"index": index, "type": type(item).__name__, "value": repr(item)[:200]}
+        for index, item in enumerate(items)
+        if not isinstance(item, dict)
+    ]
+    if bad_items:
+        logger.warning("%s contains non-dict items: %s", name, bad_items)
 
 
 def toc_index_extractor(toc, content, model=None):
     prompt = load_prompt("step_01_outline_discovery/step_04_outline_index_alignment/prompts/toc_index_extract.txt")
-    prompt = prompt + "\nTable of contents:\n" + str(toc) + "\nDocument pages:\n" + content
-    response = call_llm(model=model, prompt=prompt, json_response=True)
-    return json.loads(response)
+    results = []
+    for item in toc:
+        item_prompt = (
+            prompt
+            + f"\n\nSection To Check\n{json.dumps(item, indent=2)}\n\nDocument pages:\n{content}"
+        )
+        response = call_llm(model=model, prompt=item_prompt, json_response=True)
+        parsed = json.loads(response)
+        results.append(
+            {
+                "structure": parsed.get("structure", item.get("structure")),
+                "title": parsed.get("title", item.get("title")),
+                "page": parsed.get("page"),
+            }
+        )
+    _log_outline_item_types("toc_index_extractor response", results)
+    return results
 
 
 def add_page_number_to_toc(part, structure, model=None):
     prompt = load_prompt("step_01_outline_discovery/step_04_outline_index_alignment/prompts/toc_add_page_number.txt")
-    prompt = prompt + f"\n\nCurrent Partial Document:\n{part}\n\nGiven Structure\n{json.dumps(structure, indent=2)}\n"
-    current_json_raw = call_llm(model=model, prompt=prompt, json_response=True)
-    json_result = json.loads(current_json_raw)
-    for item in json_result:
-        item.pop("start", None)
-    return json_result
+    results = []
+    for item in structure:
+        item_prompt = (
+            prompt
+            + f"\n\nCurrent Partial Document:\n{part}\n\nSection To Check\n{json.dumps(item, indent=2)}\n"
+        )
+        current_json_raw = call_llm(model=model, prompt=item_prompt, json_response=True)
+        parsed = json.loads(current_json_raw)
+        results.append(
+            {
+                "structure": parsed.get("structure", item.get("structure")),
+                "title": parsed.get("title", item.get("title")),
+                "physical_index": convert_physical_index_to_int(parsed.get("physical_index")),
+            }
+        )
+    _log_outline_item_types("add_page_number_to_toc results", results)
+    return results
 
 
 def remove_page_number(data):
@@ -34,6 +77,8 @@ def remove_page_number(data):
 
 
 def extract_matching_page_pairs(toc_page, toc_physical_index, start_page_index):
+    _log_outline_item_types("extract_matching_page_pairs.toc_page", toc_page)
+    _log_outline_item_types("extract_matching_page_pairs.toc_physical_index", toc_physical_index)
     pairs = []
     for phy_item in toc_physical_index:
         for page_item in toc_page:

@@ -64,6 +64,15 @@ class FakeDocumentIndexer:
         }
 
 
+class FakePdfPagePreviewService:
+    def __init__(self, previews: list[dict[str, str | int]] | None = None):
+        self.previews = previews or []
+
+    def generate(self, file_path):
+        del file_path
+        return list(self.previews)
+
+
 def build_docx_bytes() -> bytes:
     if Document is None:
         raise RuntimeError("python-docx is required for DOCX test fixtures")
@@ -72,6 +81,29 @@ def build_docx_bytes() -> bytes:
     document.add_paragraph("Revenue increased year over year.")
     document.add_heading("Details", level=2)
     document.add_paragraph("Operating margin also improved.")
+    buffer = BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def build_docx_bytes_with_field_table() -> bytes:
+    if Document is None:
+        raise RuntimeError("python-docx is required for DOCX test fixtures")
+    document = Document()
+    document.add_heading("租赁物资档案（大卡片）", level=1)
+    table = document.add_table(rows=3, cols=4)
+    table.rows[0].cells[0].text = "分类"
+    table.rows[0].cells[1].text = "字段名称"
+    table.rows[0].cells[2].text = "类型"
+    table.rows[0].cells[3].text = "说明"
+    table.rows[1].cells[0].text = "基本信息"
+    table.rows[1].cells[1].text = "核算组织"
+    table.rows[1].cells[2].text = "组织"
+    table.rows[1].cells[3].text = "当前核算组织"
+    table.rows[2].cells[0].text = ""
+    table.rows[2].cells[1].text = "编码"
+    table.rows[2].cells[2].text = "文本"
+    table.rows[2].cells[3].text = "自动带出；系统生成"
     buffer = BytesIO()
     document.save(buffer)
     return buffer.getvalue()

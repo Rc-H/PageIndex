@@ -22,6 +22,7 @@ from pageindex.core.indexers.pipeline.step_05_enrichment import (
 from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
 from pageindex.core.utils.logger import get_logger
 from pageindex.core.utils.pdf_reader import extract_pdf_blocks, get_page_tokens, get_pdf_name
+from pageindex.core.utils.pdf import _extract_tables_by_page
 from pageindex.core.utils.tree import write_node_id
 from pageindex.infrastructure.settings import load_settings
 
@@ -84,8 +85,10 @@ def _initialize_pdf_context(context: PipelineContext):
         provider_type=context.provider_type,
         model=context.model,
     )
-    page_list = get_page_tokens(context.source_path)
+    pdf_tables_by_page = _extract_tables_by_page(context.source_path, model=context.model)
+    page_list = get_page_tokens(context.source_path, model=context.model, tables_by_page=pdf_tables_by_page)
     context.page_list = page_list
+    context.pdf_tables_by_page = pdf_tables_by_page
     context.logger = logger
 
     logger.info({"total_page_number": len(page_list)})
@@ -101,7 +104,11 @@ async def _build_pdf_structure(context: PipelineContext, page_list, logger):
 
 
 def _build_pdf_blocks(context: PipelineContext, structure):
-    blocks = extract_pdf_blocks(context.source_path, model=context.model)
+    blocks = extract_pdf_blocks(
+        context.source_path,
+        model=context.model,
+        tables_by_page=context.pdf_tables_by_page,
+    )
     _attach_block_node_ids(blocks, structure)
     return blocks
 
@@ -141,7 +148,29 @@ def _build_pdf_result(context: PipelineContext, structure, blocks, doc_descripti
         char_count=(blocks[-1]["char_end_in_doc"] + 1) if blocks else 0,
         token_count=sum(block["token_count"] for block in blocks),
         extract={"blocks": blocks},
+        content_images=_build_content_images(blocks),
     )
+
+
+def _build_content_images(blocks):
+    content_images = []
+    for block in blocks:
+        image = (block.get("metadata") or {}).get("image") or {}
+        attachment_id = image.get("attachment_id")
+        file_name = image.get("file_name")
+        page_no = block.get("page_no")
+        block_no = block.get("block_no")
+        if not attachment_id or not file_name or not page_no or not block_no:
+            continue
+        content_images.append(
+            {
+                "page_no": page_no,
+                "block_no": block_no,
+                "file_name": file_name,
+                "attachment_id": attachment_id,
+            }
+        )
+    return content_images
 
 
 def _attach_block_node_ids(blocks, structure):

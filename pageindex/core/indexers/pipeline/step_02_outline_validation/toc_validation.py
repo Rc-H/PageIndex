@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
 from typing import Any
 
@@ -17,8 +18,24 @@ from pageindex.core.indexers.pipeline.step_02_outline_validation.title_checks im
 from pageindex.core.utils.llm_caller import call_llm
 from pageindex.core.utils.structure_ops import convert_physical_index_to_int
 
+logger = logging.getLogger(__name__)
 
-def single_toc_item_index_fixer(section_title, content, model="gpt-4o-2024-11-20"):
+
+def _log_outline_item_types(name, items):
+    if not isinstance(items, list):
+        logger.warning("%s is not a list: type=%s value=%r", name, type(items).__name__, items)
+        return
+
+    bad_items = [
+        {"index": index, "type": type(item).__name__, "value": repr(item)[:200]}
+        for index, item in enumerate(items)
+        if not isinstance(item, dict)
+    ]
+    if bad_items:
+        logger.warning("%s contains non-dict items: %s", name, bad_items)
+
+
+def single_toc_item_index_fixer(section_title, content, model=None):
     prompt = load_prompt("step_02_outline_validation/prompts/toc_item_index_fix.txt")
     prompt = prompt + "\nSection Title:\n" + str(section_title) + "\nDocument pages:\n" + content
     response = call_llm(model=model, prompt=prompt, json_response=True)
@@ -220,6 +237,7 @@ async def resolve_pdf_outline(
     else:
         toc_with_page_number = process_no_toc(page_list, start_index=start_index, model=opt.model, logger=logger)
 
+    _log_outline_item_types(f"resolve_pdf_outline[{mode or 'process_no_toc'}]", toc_with_page_number)
     toc_with_page_number = [item for item in toc_with_page_number if item.get("physical_index") is not None]
     toc_with_page_number = validate_and_truncate_physical_indices(
         toc_with_page_number,

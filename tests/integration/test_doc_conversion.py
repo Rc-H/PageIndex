@@ -11,7 +11,7 @@ def test_doc_indexer_surfaces_conversion_failure(tmp_path):
     path.write_bytes(b"not-a-real-doc")
 
     indexer = DocumentIndexer(
-        IndexerDependencies(libreoffice_command="command-that-does-not-exist", doc_conversion_timeout_seconds=1)
+        IndexerDependencies(libreoffice_command="command-that-does-not-exist", doc_conversion_timeout_seconds=1, model="gpt-test")
     )
 
     with pytest.raises(Exception):
