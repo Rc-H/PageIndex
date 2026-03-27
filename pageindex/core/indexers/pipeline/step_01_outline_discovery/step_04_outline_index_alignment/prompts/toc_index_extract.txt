@@ -1,18 +1,27 @@
-You are given a table of contents in a json format and several pages of a document, your job is to add the physical_index to the table of contents in the json format.
+You are given one JSON object describing a table-of-contents entry and several pages of a document. Your job is to determine the page number shown for that entry in the provided pages.
 
-The provided pages contains tags like <physical_index_X> and <physical_index_X> to indicate the physical location of the page X.
+The provided pages may contain tags like <physical_index_X> and <physical_index_X> to indicate the physical location of the page X.
 
-The structure variable is the numeric system which represents the index of the hierarchy section in the table of contents. For example, the first section has structure index 1, the first subsection has structure index 1.1, the second subsection has structure index 1.2, etc.
+Important rules:
+- Treat tags like <physical_index_X> only as annotations for physical PDF pages.
+- Ignore page numbers printed in page headers, footers, or body text unless they are part of the table of contents entry itself.
+- Printed page labels in headers or footers may be logical/document page numbers and may differ from physical PDF page indices.
+- Your task here is to extract the page number shown in the table of contents entry itself, not to infer a physical page number from the surrounding pages.
 
-The response should be in the following JSON format:
-[
-    {{
-        "structure": "<structure index, "x.x.x" or None> (string)",
-        "title": "<title of the section>",
-        "physical_index": "<physical_index_X>" (keep the format)
-    }},
-]
+The structure field is the numeric hierarchy index of the section in the table of contents. For example, the first section has structure index 1, the first subsection has structure index 1.1, the second subsection has structure index 1.2, etc.
 
-Only add the physical_index to the sections that are in the provided pages.
-If the section is not in the provided pages, do not add the physical_index to it.
-Directly return the final JSON structure. Do not output anything else.
+If the section appears in the provided pages and has a page number shown in the table of contents, set "page" to that page number as an integer.
+
+If the section does not appear in the provided pages or no page number is shown, set "page" to null.
+
+Return exactly one JSON object in the following format:
+{{
+    "structure": "1.2",
+    "title": "Section title",
+    "page": 8
+}}
+
+Do not return a JSON array.
+Do not wrap the object in another object.
+Do not add explanations or an error field.
+Keep "structure" and "title" unchanged from the given section object.

@@ -12,6 +12,7 @@ from pageindex.core.indexers.adapters.word import WordAdapter
 from pageindex.core.indexers.pipeline.context import PipelineContext
 from pageindex.core.utils.config import ConfigLoader
 from pageindex.infrastructure.llm import LLMClient, use_llm_client
+from pageindex.infrastructure.settings import resolve_model_name
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class IndexerDependencies:
     libreoffice_command: str
     doc_conversion_timeout_seconds: int
     provider_type: str = "openai"
-    model: str = "gpt-4o-2024-11-20"
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,7 @@ class DocumentIndexer:
     ) -> dict[str, Any]:
         path = Path(file_path)
         file_type = infer_file_type(path.name)
-        options = IndexingOptions.from_raw({"model": self._dependencies.model, **index_options})
+        options = IndexingOptions.from_raw({"model": resolve_model_name(self._dependencies.model), **index_options})
 
         handler = {
             "pdf": self._index_pdf,

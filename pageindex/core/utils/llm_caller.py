@@ -3,16 +3,18 @@ import logging
 import time
 
 from pageindex.infrastructure.llm import get_active_llm_client
+from pageindex.infrastructure.settings import resolve_model_name
 
 
 MAX_RETRIES = 10
 
 
 def call_llm(model, prompt, chat_history=None, json_response=False):
+    resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
         try:
             return get_active_llm_client().generate_text(
-                model=model, prompt=prompt, chat_history=chat_history, json_response=json_response,
+                model=resolved_model, prompt=prompt, chat_history=chat_history, json_response=json_response,
             )
         except Exception as e:
             logging.error(f"Error: {e}")
@@ -24,10 +26,11 @@ def call_llm(model, prompt, chat_history=None, json_response=False):
 
 
 def call_llm_with_finish_reason(model, prompt, chat_history=None, json_response=False):
+    resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
         try:
             return get_active_llm_client().generate_text_with_finish_reason(
-                model=model, prompt=prompt, chat_history=chat_history, json_response=json_response,
+                model=resolved_model, prompt=prompt, chat_history=chat_history, json_response=json_response,
             )
         except Exception as e:
             logging.error(f"Error: {e}")
@@ -39,10 +42,11 @@ def call_llm_with_finish_reason(model, prompt, chat_history=None, json_response=
 
 
 async def call_llm_async(model, prompt, chat_history=None, json_response=False):
+    resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
         try:
             return await get_active_llm_client().generate_text_async(
-                model=model, prompt=prompt, chat_history=chat_history, json_response=json_response,
+                model=resolved_model, prompt=prompt, chat_history=chat_history, json_response=json_response,
             )
         except Exception as e:
             logging.error(f"Error: {e}")

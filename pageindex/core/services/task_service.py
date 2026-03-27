@@ -8,6 +8,7 @@ from typing import Any, Callable
 import httpx
 
 from pageindex.core.indexers import DocumentIndexer, IndexerDependencies
+from pageindex.core.services.page_preview_service import PdfPagePreviewService
 from pageindex.infrastructure.llm import LLMClient, LLMProviderFactory
 from pageindex.infrastructure.settings import LLMSettings, ServiceSettings, load_settings
 from pageindex.messages.models import CallbackTarget, IndexTaskRequest, RemoteFileReference, SubmittedFile
@@ -67,6 +68,7 @@ class IndexTaskService:
         callback_client: CallbackClient | None = None,
         remote_file_fetcher: RemoteFileFetcher | None = None,
         document_indexer: DocumentIndexer | None = None,
+        page_preview_service: PdfPagePreviewService | None = None,
         llm_client_factory: Callable[[], LLMClient] | None = None,
     ):
         self._settings = settings
@@ -86,6 +88,7 @@ class IndexTaskService:
                 model=self._llm_settings.model,
             )
         )
+        self._page_preview_service = page_preview_service or PdfPagePreviewService(dpi=settings.page_preview_dpi)
         self._llm_client_factory = llm_client_factory or (lambda: LLMProviderFactory.create(self._llm_settings))
         self._background_tasks: set[asyncio.Task] = set()
 
@@ -118,6 +121,9 @@ class IndexTaskService:
                     index_options=task_request.index_options,
                     llm_client=llm_client,
                 )
+                page_previews = self._page_preview_service.generate(local_path)
+                if page_previews:
+                    result["page_previews"] = page_previews
 
             await self._send_progress(task_request, "running", "finalizing", 90, submitted_file.original_name)
             await self._callback_client.send(

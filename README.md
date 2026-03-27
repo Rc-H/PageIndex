@@ -164,6 +164,8 @@ You can follow these steps to generate a PageIndex tree from a document.
 pip3 install --upgrade -r requirements.txt
 ```
 
+PDF table extraction now uses `pdfplumber` by default when available. `camelot` remains an optional enhancement for rule-based fallback on digital PDFs and may require extra system dependencies such as Ghostscript.
+
 ### 2. Configure environment variables
 
 Create a `.env` file in the root directory and add your API key plus service logging settings:
@@ -172,13 +174,28 @@ Create a `.env` file in the root directory and add your API key plus service log
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4o-2024-11-20
 OPENAI_API_KEY=your_openai_key_here
+LLM_BASE_URL=
 PAGEINDEX_SEQ_URL=http://localhost:5341
 # PAGEINDEX_SEQ_API_KEY=
 PAGEINDEX_LOG_LEVEL=INFO
 ```
 
 `LLM_PROVIDER` and `LLM_MODEL` now control the runtime provider/model for both CLI and API requests.
+`LLM_BASE_URL` lets you route requests through a proxy or self-hosted gateway; provider-specific base URL variables still take precedence.
+`OPENAI_COMPATIBLE_REQUEST_KWARGS` lets OpenAI-compatible providers such as vLLM receive extra JSON request fields.
 `PAGEINDEX_SEQ_URL` is required by the current CLI logging setup.
+
+For example, a vLLM setup for Qwen thinking-disabled JSON mode can look like:
+
+```bash
+LLM_PROVIDER=vllm
+LLM_MODEL=Qwen3.5-35B-A3B
+OPENAI_COMPATIBLE_API_KEY=token-or-placeholder
+OPENAI_COMPATIBLE_BASE_URL=http://localhost:8000/v1
+OPENAI_COMPATIBLE_REQUEST_KWARGS='{"chat_template_kwargs":{"enable_thinking":false},"stream":false}'
+```
+
+When PageIndex asks for structured JSON output internally, it will still send `response_format={"type":"json_object"}` on top of these provider kwargs.
 
 ### 3. Run PageIndex on your PDF
 
