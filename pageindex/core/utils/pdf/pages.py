@@ -53,10 +53,15 @@ def _extract_page_blocks(
     page_char_offset = 0
     next_block_no = block_no_start
 
+    page_width = page.rect.width
+    page_height = page.rect.height
     non_empty_items = [(raw_content, item) for raw_content, item in rendered_items if raw_content]
     for emitted_index, (raw_content, item) in enumerate(non_empty_items):
         normalized_text = _normalize_block_text(raw_content)
         char_count = len(normalized_text)
+        metadata = _build_item_metadata(item)
+        metadata["page_width"] = page_width
+        metadata["page_height"] = page_height
         page_blocks.append(
             {
                 "block_no": next_block_no,
@@ -72,7 +77,7 @@ def _extract_page_blocks(
                 "char_start_in_page": page_char_offset,
                 "char_end_in_page": page_char_offset + char_count - 1 if char_count else page_char_offset,
                 "token_count": len(encode(normalized_text)),
-                "metadata": _build_item_metadata(item),
+                "metadata": metadata,
             }
         )
         next_block_no += 1

@@ -9,6 +9,7 @@ from pageindex.core.utils.pdf.constants import (
     CAMELOT_ENGINE_NAME,
     DEFAULT_TABLE_TITLE,
     MAX_TABLE_TITLE_LENGTH,
+    PAGE_NUMBER_ARTIFACT_PATTERNS,
     PDFPLUMBER_ENGINE_NAME,
     TABLE_SUMMARY_PROMPT_TEMPLATE,
     TABLE_TITLE_PROMPT_TEMPLATE,
@@ -232,6 +233,10 @@ def _clean_table_cell(cell) -> str:
     text = str(cell).replace("\xa0", " ").replace("\t", " ")
     text = re.sub(r"\r\n|\r", "\n", text)
     text = "\n".join(part.strip() for part in text.split("\n") if part.strip())
+    text = "\n".join(
+        line for line in text.splitlines()
+        if not any(p.match(line.strip()) for p in PAGE_NUMBER_ARTIFACT_PATTERNS)
+    )
     text = re.sub(r"[ ]+", " ", text)
     return text.strip()
 

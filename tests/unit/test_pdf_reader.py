@@ -198,7 +198,13 @@ def test_extract_tables_by_page_limits_camelot_to_missing_pages(monkeypatch):
 
 
 def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypatch):
+    class _Rect:
+        width = 595.276
+        height = 841.89
+
     class _Page:
+        rect = _Rect()
+
         def get_text(self, mode):
             assert mode == "dict"
             return {
@@ -248,7 +254,13 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
 
 
 def test_extract_page_blocks_preserves_order_and_offsets():
+    class _Rect:
+        width = 595.276
+        height = 841.89
+
     class _Page:
+        rect = _Rect()
+
         def get_text(self, mode):
             assert mode == "dict"
             return {
