@@ -66,4 +66,5 @@ class WordAdapter:
             doc_description=doc_description,
             char_count=len(full_text),
             token_count=count_tokens(full_text, model=context.model),
+            location_unit="section",
         )

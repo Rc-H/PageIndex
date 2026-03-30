@@ -12,6 +12,7 @@ def build_index_result(
     token_count: int | None = None,
     extract: dict[str, Any] | None = None,
     content_images: list[dict[str, Any]] | None = None,
+    location_unit: str | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {"doc_name": doc_name, "structure": structure}
     if doc_description is not None:
@@ -26,4 +27,6 @@ def build_index_result(
         result["extract"] = extract
     if content_images is not None:
         result["content_images"] = content_images
+    if location_unit is not None:
+        result["location_unit"] = location_unit
     return result
