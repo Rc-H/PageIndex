@@ -257,6 +257,65 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
     assert next_offset > 10
 
 
+def test_header_marked_tables_suppress_overlapping_text_and_images(monkeypatch):
+    """Tables marked with _is_page_header=True should suppress overlapping text and image blocks
+    but should NOT be rendered themselves."""
+
+    class _Rect:
+        width = 595.276
+        height = 841.89
+
+    class _Page:
+        rect = _Rect()
+
+        def get_text(self, mode):
+            assert mode == "dict"
+            return {
+                "blocks": [
+                    # Logo image inside header area
+                    {"type": 1, "bbox": [0, 5, 100, 25], "image": b"png", "ext": "png"},
+                    # Text inside header area: "文件编号"
+                    {"type": 0, "bbox": [10, 10, 200, 45], "lines": [{"spans": [{"text": "文件编号 GETO-HR-003"}]}]},
+                    # Real content after header
+                    {"type": 0, "bbox": [0, 200, 500, 230], "lines": [{"spans": [{"text": "正文内容第一段"}]}]},
+                ]
+            }
+
+    monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "Logo")
+    monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "Logo描述")
+    monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda *args, **kwargs: "att-uuid")
+
+    header_table = {
+        "bbox": [0, 0, 500, 50],
+        "rows": 1,
+        "cols": 2,
+        "cells": [["公司", "文件编号"]],
+        "engine": "pdfplumber",
+        "title": "页眉",
+        "summary": None,
+        "markdown": "| 公司 | 文件编号 |",
+        "_is_page_header": True,
+    }
+
+    blocks, _, _ = pdf_reader._extract_page_blocks(
+        _Page(),
+        page_no=3,
+        block_no_start=1,
+        doc_char_offset=0,
+        encode=lambda text: text.split(),
+        pdf_path="test.pdf",
+        page_tables=[header_table],
+    )
+
+    # Only the real content block should remain
+    assert len(blocks) == 1
+    assert blocks[0]["raw_content"] == "正文内容第一段"
+    # No image block, no header text block, no header table rendered
+    assert all("文件编号" not in b["raw_content"] for b in blocks)
+    assert all(b["metadata"]["type"] != "table" for b in blocks)
+    assert all(b["metadata"]["type"] != "image" for b in blocks)
+
+
 def test_extract_page_blocks_preserves_order_and_offsets():
     class _Rect:
         width = 595.276

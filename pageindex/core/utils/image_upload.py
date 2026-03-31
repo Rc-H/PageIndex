@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from pageindex.core.utils.pdf.constants import (
+from pageindex.core.utils.image_constants import (
     DEFAULT_IMAGE_ALT_TEXT,
     IMAGE_DESCRIPTION_PROMPT,
     IMAGE_TITLE_PROMPT,

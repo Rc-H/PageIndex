@@ -8,7 +8,7 @@ from pageindex.core.utils.image_upload import (
     normalize_image_alt_text,
     upload_attachment_bytes,
 )
-from pageindex.core.utils.pdf.constants import DEFAULT_IMAGE_ALT_TEXT
+from pageindex.core.utils.image_constants import DEFAULT_IMAGE_ALT_TEXT
 
 
 def _extract_image_markdown_from_pymupdf_block(

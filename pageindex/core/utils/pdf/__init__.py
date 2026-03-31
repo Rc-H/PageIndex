@@ -40,6 +40,7 @@ from pageindex.core.utils.pdf.pages import (
     _render_ordered_item,
     _render_page_items,
 )
+from pageindex.core.utils.pdf.header_detection import filter_page_header_tables
 from pageindex.core.utils.pdf.tables import (
     _default_table_title,
     _extract_tables_by_page,
@@ -76,6 +77,7 @@ __all__ = [
     "_extract_page_blocks",
     "_extract_image_markdown_from_pymupdf_block",
     "_extract_text_from_pymupdf_block",
+    "filter_page_header_tables",
     "_extract_tables_by_page",
     "_extract_tables_with_camelot",
     "_extract_tables_with_pdfplumber",

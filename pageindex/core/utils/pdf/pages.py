@@ -139,14 +139,23 @@ def _build_item_metadata(item: dict) -> dict:
 
 
 def _get_ordered_page_items(page, page_tables: list[dict] | None = None):
+    all_tables = page_tables or []
+    header_bboxes = [t["bbox"] for t in all_tables if t.get("_is_page_header") and t.get("bbox")]
+    content_tables = [t for t in all_tables if not t.get("_is_page_header")]
+
     table_items = [
         {"kind": TABLE_BLOCK_TYPE, "bbox": table.get("bbox"), "table": table}
-        for table in (page_tables or [])
+        for table in content_tables
     ]
-    table_bboxes = [item["bbox"] for item in table_items if item.get("bbox")]
+    content_table_bboxes = [item["bbox"] for item in table_items if item.get("bbox")]
+    suppression_bboxes = content_table_bboxes + header_bboxes
+
     block_items = []
     for block in _get_ordered_blocks(page):
-        if block.get("type") == TEXT_PYMUPDF_TYPE and _block_overlaps_any_table(block, table_bboxes):
+        block_type = block.get("type")
+        if block_type == TEXT_PYMUPDF_TYPE and _block_overlaps_any_table(block, suppression_bboxes):
+            continue
+        if block_type == IMAGE_PYMUPDF_TYPE and _block_overlaps_any_table(block, header_bboxes):
             continue
         block_items.append({"kind": PYMUPDF_ITEM_KIND, "bbox": block.get("bbox"), "block": block})
     return sorted(block_items + table_items, key=_ordered_item_key)

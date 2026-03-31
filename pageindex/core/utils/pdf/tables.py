@@ -14,6 +14,7 @@ from pageindex.core.utils.pdf.constants import (
     TABLE_SUMMARY_PROMPT_TEMPLATE,
     TABLE_TITLE_PROMPT_TEMPLATE,
 )
+from pageindex.core.utils.pdf.header_detection import filter_page_header_tables
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def _extract_tables_by_page(pdf_path, model: str | None = None) -> dict[int, lis
         elif camelot_tables.get(page_no):
             merged[page_no] = camelot_tables[page_no]
             logger.info("camelot table fallback used", extra={"page_no": page_no, "table_count": len(merged[page_no])})
-    return merged
+    return filter_page_header_tables(merged, model=model)
 
 
 def _extract_missing_tables_with_camelot(
@@ -84,6 +85,7 @@ def _extract_tables_with_pdfplumber(pdf_path, model: str | None = None) -> dict[
 
 def _extract_pdfplumber_page_tables(page, page_no: int) -> list[dict]:
     tables = []
+    page_height = getattr(page, "height", None)
     finder = getattr(page, "find_tables", None)
     settings = _default_pdfplumber_table_settings()
     if callable(finder):
@@ -95,6 +97,7 @@ def _extract_pdfplumber_page_tables(page, page_no: int) -> list[dict]:
                 engine=PDFPLUMBER_ENGINE_NAME,
                 page_no=page_no,
                 table_index=table_index,
+                page_height=page_height,
             )
             if payload:
                 tables.append(payload)
@@ -108,6 +111,7 @@ def _extract_pdfplumber_page_tables(page, page_no: int) -> list[dict]:
             engine=PDFPLUMBER_ENGINE_NAME,
             page_no=page_no,
             table_index=table_index,
+            page_height=page_height,
         )
         if payload:
             tables.append(payload)
@@ -183,7 +187,14 @@ def _normalize_bbox(bbox):
     return [float(value) for value in bbox]
 
 
-def _build_table_payload(cells: list[list[str]], bbox, engine: str, page_no: int, table_index: int) -> dict | None:
+def _build_table_payload(
+    cells: list[list[str]],
+    bbox,
+    engine: str,
+    page_no: int,
+    table_index: int,
+    page_height: float | None = None,
+) -> dict | None:
     if not cells:
         return None
     table_markdown = _table_to_markdown(cells)
@@ -198,6 +209,7 @@ def _build_table_payload(cells: list[list[str]], bbox, engine: str, page_no: int
         "title": title,
         "summary": summary,
         "page_no": page_no,
+        "page_height": page_height,
         "table_index": table_index,
         "markdown": _render_table_block(table_markdown, title=title, summary=summary),
     }
