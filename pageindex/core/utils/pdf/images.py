@@ -1,17 +1,14 @@
 import os
-import re
-from base64 import b64encode
 from pathlib import Path
 
-from pageindex.core.utils.image_upload import build_markdown_image, upload_attachment_bytes
-from pageindex.infrastructure.llm import OpenAICompatibleLLMClient, get_active_llm_client
-from pageindex.infrastructure.settings import resolve_model_name
-
-from pageindex.core.utils.pdf.constants import (
-    DEFAULT_IMAGE_ALT_TEXT,
-    IMAGE_TITLE_PROMPT,
-    MAX_IMAGE_TITLE_LENGTH,
+from pageindex.core.utils.image_upload import (
+    build_markdown_image,
+    generate_image_alt_text,
+    generate_image_description,
+    normalize_image_alt_text,
+    upload_attachment_bytes,
 )
+from pageindex.core.utils.pdf.constants import DEFAULT_IMAGE_ALT_TEXT
 
 
 def _extract_image_markdown_from_pymupdf_block(
@@ -38,14 +35,19 @@ def _extract_image_markdown_from_pymupdf_block(
 
     attachment_id = upload_attachment_bytes(image_bytes, filename=filename, content_type=content_type)
     if attachment_id:
+        description = _generate_image_description(image_bytes, content_type=content_type, model=model)
         block["_pageindex_uploaded_image"] = {
             "file_name": filename,
             "attachment_id": attachment_id,
             "img_title": alt_text,
+            "img_description": description,
             "page_no": page_no,
             "image_index": image_index or 1,
         }
-        return build_markdown_image(filename, alt_text=alt_text)
+        markdown = build_markdown_image(filename, alt_text=alt_text)
+        if description:
+            markdown += f"\n[图片内容：{description}]"
+        return markdown
     return build_empty_image_markdown(alt_text=alt_text)
 
 
@@ -77,42 +79,12 @@ def build_uploaded_image_filename(pdf_path=None, page_no: int | None = None, ima
 
 
 def _generate_image_alt_text(image_bytes: bytes, content_type: str, model: str | None = None) -> str:
-    generated = _summarize_image_with_llm(image_bytes, content_type=content_type, model=model)
-    return _normalize_image_alt_text(generated)
+    return generate_image_alt_text(image_bytes, content_type=content_type, model=model)
 
 
-def _summarize_image_with_llm(image_bytes: bytes, content_type: str, model: str | None = None) -> str | None:
-    try:
-        client = get_active_llm_client()
-    except Exception:
-        return None
-
-    if not isinstance(client, OpenAICompatibleLLMClient):
-        return None
-
-    image_data = b64encode(image_bytes).decode("utf-8")
-    content = [
-        {"type": "text", "text": IMAGE_TITLE_PROMPT},
-        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{image_data}"}},
-    ]
-
-    try:
-        return client.generate_text_from_content(model=resolve_model_name(model), content=content)
-    except Exception:
-        return None
+def _generate_image_description(image_bytes: bytes, content_type: str, model: str | None = None) -> str:
+    return generate_image_description(image_bytes, content_type=content_type, model=model)
 
 
-def _normalize_image_alt_text(value: str | None) -> str:
-    if not value:
-        return DEFAULT_IMAGE_ALT_TEXT
-
-    first_line = value.strip().splitlines()[0].strip()
-    first_line = re.sub(r"^[\"'“”‘’《〈【\[\(]+", "", first_line)
-    first_line = re.sub(r"[\"'“”‘’》〉】\]\)]+$", "", first_line)
-    first_line = re.sub(r"[。！!？?,，:：;；、]", "", first_line)
-    first_line = " ".join(first_line.split())
-    if not first_line:
-        return DEFAULT_IMAGE_ALT_TEXT
-    if len(first_line) > MAX_IMAGE_TITLE_LENGTH:
-        first_line = first_line[:MAX_IMAGE_TITLE_LENGTH].rstrip()
-    return first_line or DEFAULT_IMAGE_ALT_TEXT
+# Keep _normalize_image_alt_text as a module-level alias for existing test imports
+_normalize_image_alt_text = normalize_image_alt_text

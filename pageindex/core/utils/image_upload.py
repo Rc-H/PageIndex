@@ -2,12 +2,22 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import re
+from base64 import b64encode
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
 import httpx
 
-from pageindex.infrastructure.settings import load_settings
+from pageindex.core.utils.pdf.constants import (
+    DEFAULT_IMAGE_ALT_TEXT,
+    IMAGE_DESCRIPTION_PROMPT,
+    IMAGE_TITLE_PROMPT,
+    MAX_IMAGE_DESCRIPTION_LENGTH,
+    MAX_IMAGE_TITLE_LENGTH,
+)
+from pageindex.infrastructure.llm import OpenAICompatibleLLMClient, get_active_llm_client
+from pageindex.infrastructure.settings import load_settings, resolve_model_name
 
 
 logger = logging.getLogger(__name__)
@@ -71,11 +81,84 @@ def upload_image_bytes(
     filename: str,
     content_type: str | None = None,
     alt_text: str = "image",
+    model: str | None = None,
 ) -> str | None:
     attachment_id = upload_attachment_bytes(content, filename, content_type)
     if not attachment_id:
         return None
-    return build_markdown_image(str(attachment_id), alt_text=alt_text)
+
+    mime = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    generated_alt = generate_image_alt_text(content, content_type=mime, model=model)
+    if generated_alt and generated_alt != DEFAULT_IMAGE_ALT_TEXT:
+        alt_text = generated_alt
+
+    markdown = build_markdown_image(str(attachment_id), alt_text=alt_text)
+
+    description = generate_image_description(content, content_type=mime, model=model)
+    if description:
+        markdown += f"\n[图片内容：{description}]"
+
+    return markdown
+
+
+def summarize_image_with_llm(
+    image_bytes: bytes, content_type: str, model: str | None = None, prompt: str | None = None
+) -> str | None:
+    try:
+        client = get_active_llm_client()
+    except Exception:
+        return None
+
+    if not isinstance(client, OpenAICompatibleLLMClient):
+        return None
+
+    image_data = b64encode(image_bytes).decode("utf-8")
+    content = [
+        {"type": "text", "text": prompt or IMAGE_TITLE_PROMPT},
+        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{image_data}"}},
+    ]
+
+    try:
+        return client.generate_text_from_content(model=resolve_model_name(model), content=content)
+    except Exception:
+        return None
+
+
+def generate_image_alt_text(image_bytes: bytes, content_type: str, model: str | None = None) -> str:
+    generated = summarize_image_with_llm(image_bytes, content_type=content_type, model=model)
+    return normalize_image_alt_text(generated)
+
+
+def generate_image_description(image_bytes: bytes, content_type: str, model: str | None = None) -> str:
+    generated = summarize_image_with_llm(
+        image_bytes, content_type=content_type, model=model, prompt=IMAGE_DESCRIPTION_PROMPT
+    )
+    return normalize_image_description(generated)
+
+
+def normalize_image_description(value: str | None) -> str:
+    if not value:
+        return ""
+    text = " ".join(value.strip().split())
+    if len(text) > MAX_IMAGE_DESCRIPTION_LENGTH:
+        text = text[:MAX_IMAGE_DESCRIPTION_LENGTH].rstrip()
+    return text
+
+
+def normalize_image_alt_text(value: str | None) -> str:
+    if not value:
+        return DEFAULT_IMAGE_ALT_TEXT
+
+    first_line = value.strip().splitlines()[0].strip()
+    first_line = re.sub(r"^[\"'\u201c\u201d\u2018\u2019《〈【\[\(]+", "", first_line)
+    first_line = re.sub(r"[\"'\u201c\u201d\u2018\u2019》〉】\]\)]+$", "", first_line)
+    first_line = re.sub(r"[。！!？?,，:：;；、]", "", first_line)
+    first_line = " ".join(first_line.split())
+    if not first_line:
+        return DEFAULT_IMAGE_ALT_TEXT
+    if len(first_line) > MAX_IMAGE_TITLE_LENGTH:
+        first_line = first_line[:MAX_IMAGE_TITLE_LENGTH].rstrip()
+    return first_line or DEFAULT_IMAGE_ALT_TEXT
 
 
 def infer_filename_from_url(url: str, default_stem: str = "image") -> str:

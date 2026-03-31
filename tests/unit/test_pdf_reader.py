@@ -1,6 +1,6 @@
 import pytest
 
-from pageindex.core.utils import pdf_reader
+from pageindex.core.utils import image_upload, pdf_reader
 from pageindex.core.utils.pdf import images as pdf_images
 from pageindex.core.utils.pdf import tables as pdf_tables
 
@@ -39,7 +39,8 @@ def test_extract_ordered_page_content_includes_image_placeholders():
 
 def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_filename(monkeypatch, tmp_path):
     pdf_path = tmp_path / "sample.pdf"
-    monkeypatch.setattr(pdf_images, "_summarize_image_with_llm", lambda *args, **kwargs: "流程图总览说明太长")
+    monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "流程图总览说明太长")
+    monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "流程图总览说明太长")
     captured = {}
     monkeypatch.setattr(
         pdf_images,
@@ -58,7 +59,7 @@ def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_fi
         model="qwen-test",
     )
 
-    assert markdown == "![流程图总览说明太长](sample.pdf-page-16.png)"
+    assert markdown == "![流程图总览说明太长](sample.pdf-page-16.png)\n[图片内容：流程图总览说明太长]"
     assert captured == {
         "content": b"png-data",
         "filename": "sample.pdf-page-16.png",
@@ -68,7 +69,8 @@ def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_fi
 
 def test_extract_image_markdown_from_pymupdf_block_uses_index_suffix_for_second_image(monkeypatch, tmp_path):
     pdf_path = tmp_path / "sample.pdf"
-    monkeypatch.setattr(pdf_images, "_summarize_image_with_llm", lambda *args, **kwargs: "表格总览")
+    monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "表格总览")
+    monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "表格总览")
     monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda content, filename, content_type=None: "attachment-uuid")
 
     markdown = pdf_reader._extract_image_markdown_from_pymupdf_block(
@@ -79,7 +81,7 @@ def test_extract_image_markdown_from_pymupdf_block_uses_index_suffix_for_second_
         render_images=True,
     )
 
-    assert markdown == "![表格总览](sample.pdf-page-16-2.png)"
+    assert markdown == "![表格总览](sample.pdf-page-16-2.png)\n[图片内容：表格总览]"
 
 
 def test_normalize_image_alt_text_truncates_and_strips_punctuation():
@@ -157,10 +159,10 @@ def test_image_summary_uses_llm_model_from_settings_when_model_not_provided(monk
             return "图片标题"
 
     monkeypatch.setenv("LLM_MODEL", "Qwen3.5-35B-A3B")
-    monkeypatch.setattr(pdf_images, "get_active_llm_client", lambda: _Client())
-    monkeypatch.setattr(pdf_images, "OpenAICompatibleLLMClient", _Client)
+    monkeypatch.setattr(image_upload, "get_active_llm_client", lambda: _Client())
+    monkeypatch.setattr(image_upload, "OpenAICompatibleLLMClient", _Client)
 
-    assert pdf_images._summarize_image_with_llm(b"png-data", content_type="image/png") == "图片标题"
+    assert image_upload.summarize_image_with_llm(b"png-data", content_type="image/png") == "图片标题"
     assert captured["model"] == "Qwen3.5-35B-A3B"
 
 
@@ -216,6 +218,7 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
             }
 
     monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "图示")
+    monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "详细描述")
     monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda *args, **kwargs: "attachment-uuid")
 
     table = {
@@ -246,6 +249,7 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
         "file_name": "sample.pdf-page-2.png",
         "attachment_id": "attachment-uuid",
         "img_title": "图示",
+        "img_description": "详细描述",
         "page_no": 2,
         "image_index": 1,
     }
