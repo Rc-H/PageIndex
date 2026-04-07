@@ -1,0 +1,25 @@
+You are analyzing a table extracted from a Word document. Decide whether each row of this table represents a distinct, self-contained entity that would be worth retrieving on its own (for example: a field definition, an API parameter, a configuration option, a glossary entry, a person profile).
+
+If yes, the table will be expanded so each row becomes its own searchable section in the document index. If no, the table will be kept together as one chunk.
+
+Table headers:
+{headers}
+
+Sample rows (up to {sample_count} rows):
+{sample_rows}
+
+Decision guidelines:
+- "yes" — when each row is a NAMED entity that someone might search for individually. Examples: a field reference table where each row defines one field; a list of API endpoints; a glossary; a list of error codes.
+- "no" — when rows have no individual meaning out of the table context. Examples: a sales report by month; a comparison matrix; a layout/decorative table; a key-value pair list with no rows worth retrieving alone.
+
+If yes, also identify which column holds the row's NAME (the value that would become the section title when retrieving). The first useful name column wins.
+
+Return ONLY valid JSON in this exact shape, no extra keys, no commentary:
+
+{{"should_expand": true, "name_column_index": 0}}
+
+or
+
+{{"should_expand": false, "name_column_index": null}}
+
+The "name_column_index" is the 0-based index into the headers array. If should_expand is false, set name_column_index to null.

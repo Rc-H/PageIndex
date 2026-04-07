@@ -10,6 +10,12 @@ from pageindex.core.indexers.pipeline.step_01_outline_discovery.step_06_outline_
     process_toc_no_page_numbers,
     process_toc_with_page_numbers,
 )
+from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_block_extractor import (
+    extract_docx_blocks,
+)
+from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_body_iterator import (
+    iter_docx_body_items,
+)
 from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_outline import (
     extract_docx_nodes,
     require_word_document,
@@ -17,9 +23,11 @@ from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_outline imp
 
 __all__ = [
     "check_toc",
+    "extract_docx_blocks",
     "extract_docx_nodes",
     "extract_node_text_content",
     "extract_nodes_from_markdown",
+    "iter_docx_body_items",
     "process_no_toc",
     "process_toc_no_page_numbers",
     "process_toc_with_page_numbers",

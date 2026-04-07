@@ -12,17 +12,32 @@ except Exception:  # pragma: no cover - optional dependency for test env
 
 
 class FakeLLMClient(LLMClient):
-    def generate_text(self, model: str, prompt: str, chat_history=None) -> str:
-        del model, prompt, chat_history
+    def __init__(self, response_for_prompt=None):
+        # Optional callable: ``(prompt, json_response) -> str`` so individual
+        # tests can return different payloads (e.g. JSON) for specific
+        # prompts. When None, falls back to "fake-response".
+        self._response_for_prompt = response_for_prompt
+
+    def _resolve_response(self, prompt: str, json_response: bool) -> str:
+        if self._response_for_prompt is not None:
+            return self._response_for_prompt(prompt, json_response)
         return "fake-response"
 
-    def generate_text_with_finish_reason(self, model: str, prompt: str, chat_history=None) -> tuple[str, str]:
-        del model, prompt, chat_history
-        return "fake-response", "finished"
+    def generate_text(self, model: str, prompt: str, chat_history=None, json_response: bool = False) -> str:
+        del model, chat_history
+        return self._resolve_response(prompt, json_response)
 
-    async def generate_text_async(self, model: str, prompt: str, chat_history=None) -> str:
-        del model, prompt, chat_history
-        return "fake-response"
+    def generate_text_with_finish_reason(
+        self, model: str, prompt: str, chat_history=None, json_response: bool = False,
+    ) -> tuple[str, str]:
+        del model, chat_history
+        return self._resolve_response(prompt, json_response), "finished"
+
+    async def generate_text_async(
+        self, model: str, prompt: str, chat_history=None, json_response: bool = False,
+    ) -> str:
+        del model, chat_history
+        return self._resolve_response(prompt, json_response)
 
 
 def fake_llm_client_factory() -> LLMClient:
