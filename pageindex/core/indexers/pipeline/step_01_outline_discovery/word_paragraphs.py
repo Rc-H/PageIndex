@@ -22,7 +22,20 @@ def get_heading_level(style_name: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def extract_table_cell_text(cell, image_cache: dict[object, str] | None = None) -> str:
+def extract_table_cell_text(
+    cell,
+    image_cache: dict[object, str] | None = None,
+    nested_table_renderer=None,
+) -> str:
+    """Render a single table cell as plain text.
+
+    When ``nested_table_renderer`` is supplied, any tables nested directly
+    inside the cell are also rendered (recursively, via the renderer) and
+    their textualization is appended to the cell's parts list. The dedup
+    ``seen`` set still applies, so a nested table whose textualization is
+    identical to an existing paragraph is dropped.
+    """
+
     parts: list[str] = []
     seen: set[str] = set()
     for paragraph in cell.paragraphs:
@@ -30,6 +43,12 @@ def extract_table_cell_text(cell, image_cache: dict[object, str] | None = None) 
         if text and text not in seen:
             parts.append(text)
             seen.add(text)
+    if nested_table_renderer is not None:
+        for nested_table in cell.tables:
+            nested_text = nested_table_renderer(nested_table, image_cache=image_cache).strip()
+            if nested_text and nested_text not in seen:
+                parts.append(nested_text)
+                seen.add(nested_text)
     return " ".join(parts)
 
 

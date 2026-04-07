@@ -1,13 +1,21 @@
+"""Heading-anchored outline extraction for DOCX documents.
+
+Consumes the materialized body item list produced by ``iter_docx_body_items``
+and produces flat heading nodes for ``build_tree_from_nodes``. Each node
+carries ``start_index`` and ``end_index`` equal to the section ordinal
+(1-based, in body-item order) so the tree builder can propagate and bubble
+up section coverage.
+
+This module knows about heading levels and section ordinals; it knows
+nothing about block dict shapes or char offsets, and it does NOT walk the
+DOCX document directly — that is the body iterator's job. Walking once and
+materializing the result is required because the LLM-driven field-table
+expander runs inside the iterator and must fire only once per table.
+"""
+
 from __future__ import annotations
 
-from typing import Any
-
-from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_paragraphs import (
-    extract_paragraph_text,
-    extract_table_cell_text,
-    get_heading_level,
-)
-from pageindex.core.indexers.pipeline.step_01_outline_discovery.word_tables import extract_table_text
+from typing import Any, Iterable
 
 try:
     from docx import Document as WordDocument
@@ -21,74 +29,75 @@ def require_word_document():
     return WordDocument
 
 
-def extract_docx_nodes(document, fallback_title: str) -> list[dict[str, Any]]:
+def extract_docx_nodes(
+    body_items: Iterable[dict[str, Any]],
+    fallback_title: str,
+) -> list[dict[str, Any]]:
+    """Build flat heading nodes from a materialized body item list.
+
+    Each returned node has ``title``, ``level``, ``line_num``, ``text``,
+    ``start_index`` and ``end_index``. ``start_index == end_index`` equals
+    the section ordinal (1-based, in body-item order). ``text`` contains
+    the heading title followed by all body content (paragraphs and
+    textualized table chunks) under that heading.
+
+    If there are no heading items in ``body_items``, returns a single
+    fallback node at section ordinal 1.
+    """
+
     nodes: list[dict[str, Any]] = []
     current_node: dict[str, Any] | None = None
     body_buffer: list[str] = []
+    section_ordinal = 0
 
-    for line_num, block in enumerate(_iter_docx_blocks(document), start=1):
-        if block["kind"] == "heading":
-            current_node = _finalize_and_start_heading(nodes, current_node, body_buffer, block, line_num)
-            body_buffer = [block["text"]]
+    for line_num, item in enumerate(body_items, start=1):
+        if item["kind"] == "heading":
+            if current_node is not None:
+                _finalize_node(current_node, body_buffer, nodes)
+            section_ordinal += 1
+            current_node = _start_heading_node(item, line_num, section_ordinal)
+            body_buffer = [item["text"]]
         else:
             if current_node is None:
-                current_node = {"title": fallback_title, "line_num": 1, "level": 1, "text": ""}
+                section_ordinal += 1
+                current_node = _start_fallback_node(fallback_title, section_ordinal)
                 body_buffer = [fallback_title]
-            if block["text"]:
-                body_buffer.append(block["text"])
+            body_buffer.append(item["text"])
 
     if current_node is not None:
-        current_node["text"] = "\n".join(body_buffer).strip() or current_node["title"]
-        nodes.append(current_node)
+        _finalize_node(current_node, body_buffer, nodes)
 
     if not nodes:
-        return [{"title": fallback_title, "line_num": 1, "level": 1, "text": fallback_title}]
+        return [_start_fallback_node(fallback_title, section_ordinal=1)]
+
     return nodes
 
 
-def _finalize_and_start_heading(nodes, current_node, body_buffer, block, line_num):
-    if current_node is not None:
-        current_node["text"] = "\n".join(body_buffer).strip() or current_node["title"]
-        nodes.append(current_node)
+def _start_heading_node(item: dict[str, Any], line_num: int, section_ordinal: int) -> dict[str, Any]:
     return {
-        "title": block["text"],
+        "title": item["text"],
         "line_num": line_num,
-        "level": block["level"],
+        "level": item["level"],
         "text": "",
+        "start_index": section_ordinal,
+        "end_index": section_ordinal,
     }
 
 
-def _iter_docx_blocks(document):
-    image_cache: dict[object, str] = {}
-    for child in document.element.body.iterchildren():
-        tag = child.tag.split("}")[-1]
-        if tag == "p":
-            paragraph = next((p for p in document.paragraphs if p._p is child), None)
-            if paragraph is None:
-                continue
-            text = extract_paragraph_text(paragraph, image_cache=image_cache).strip()
-            if not text:
-                continue
-            heading_level = get_heading_level(paragraph.style.name if paragraph.style else "")
-            if heading_level is not None:
-                yield {"kind": "heading", "level": heading_level, "text": text}
-            else:
-                yield {"kind": "text", "text": text}
-        elif tag == "tbl":
-            table = next((t for t in document.tables if t._tbl is child), None)
-            if table is None:
-                continue
-            text = _extract_table_text(table, image_cache=image_cache)
-            if text:
-                yield {"kind": "text", "text": text}
+def _start_fallback_node(fallback_title: str, section_ordinal: int) -> dict[str, Any]:
+    return {
+        "title": fallback_title,
+        "line_num": 1,
+        "level": 1,
+        "text": fallback_title,
+        "start_index": section_ordinal,
+        "end_index": section_ordinal,
+    }
 
 
-def _extract_table_cell_text(cell, image_cache: dict[object, str] | None = None) -> str:
-    return extract_table_cell_text(cell, image_cache=image_cache)
-
-
-def _extract_table_text(table, image_cache: dict[object, str] | None = None) -> str:
-    return extract_table_text(table, _extract_table_cell_text, image_cache=image_cache)
+def _finalize_node(node: dict[str, Any], body_buffer: list[str], result: list[dict[str, Any]]) -> None:
+    node["text"] = "\n".join(body_buffer).strip() or node["title"]
+    result.append(node)
 
 
 __all__ = ["extract_docx_nodes", "require_word_document"]
