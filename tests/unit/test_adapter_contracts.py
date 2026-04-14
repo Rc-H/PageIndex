@@ -17,6 +17,8 @@ def _build_options(**overrides):
         "thinning_threshold": 0,
         "summary_token_threshold": 0,
         "model": "gpt-test",
+        "block_granularity_page_threshold": 0,
+        "max_token_num_per_block_range": 512,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -33,7 +35,8 @@ def test_pdf_adapter_build_includes_extract_blocks_and_stats(monkeypatch, tmp_pa
     )
 
     monkeypatch.setattr(pdf, "get_logger", lambda *args, **kwargs: SimpleNamespace(info=lambda *a, **k: None))
-    monkeypatch.setattr(pdf, "get_page_tokens", lambda source_path: [("page-1", 3), ("page-2", 5)])
+    monkeypatch.setattr(pdf, "_extract_tables_by_page", lambda source_path, model=None: {})
+    monkeypatch.setattr(pdf, "get_page_tokens", lambda source_path, model=None, tables_by_page=None: [("page-1", 3), ("page-2", 5)])
 
     async def _fake_build_pdf_tree(page_list, opt, logger=None):
         return [
@@ -59,7 +62,7 @@ def test_pdf_adapter_build_includes_extract_blocks_and_stats(monkeypatch, tmp_pa
     monkeypatch.setattr(
         pdf,
         "extract_pdf_blocks",
-        lambda source_path, model: [
+        lambda source_path, model=None, tables_by_page=None: [
             {
                 "block_no": 1,
                 "page_no": 1,

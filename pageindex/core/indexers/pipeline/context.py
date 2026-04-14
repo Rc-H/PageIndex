@@ -22,4 +22,5 @@ class PipelineContext:
     pdf_tables_by_page: dict[int, list[dict[str, Any]]] | None = None
     outline: list[dict[str, Any]] | None = None
     tree: list[dict[str, Any]] | None = None
+    blocks: list[dict[str, Any]] | None = None
     logger: Any = None

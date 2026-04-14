@@ -91,6 +91,7 @@ class IndexTaskService:
         self._page_preview_service = page_preview_service or PdfPagePreviewService(dpi=settings.page_preview_dpi)
         self._llm_client_factory = llm_client_factory or (lambda: LLMProviderFactory.create(self._llm_settings))
         self._background_tasks: set[asyncio.Task] = set()
+        self._concurrency_semaphore = asyncio.Semaphore(settings.max_concurrent_tasks)
 
     async def submit(self, task_request: IndexTaskRequest) -> None:
         task = asyncio.create_task(self._run(task_request))
@@ -112,18 +113,32 @@ class IndexTaskService:
 
             await self._send_progress(task_request, "running", "indexing", 60, submitted_file.original_name)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                local_path = Path(temp_dir) / submitted_file.original_name
-                local_path.write_bytes(submitted_file.content)
-                llm_client = self._llm_client_factory()
-                result = await self._document_indexer.index(
-                    file_path=local_path,
-                    index_options=task_request.index_options,
-                    llm_client=llm_client,
-                )
-                page_previews = self._page_preview_service.generate(local_path)
-                if page_previews:
-                    result["page_previews"] = page_previews
+            async with self._concurrency_semaphore:
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    local_path = Path(temp_dir) / submitted_file.original_name
+                    local_path.write_bytes(submitted_file.content)
+                    llm_client = self._llm_client_factory()
+
+                    # Run the indexer in a dedicated thread with its own event
+                    # loop.  The pipeline contains many synchronous blocking
+                    # calls (sync LLM HTTP requests via call_llm(), PDF table
+                    # extraction via pdfplumber/camelot, PyMuPDF page reads)
+                    # that would freeze the main asyncio event loop and prevent
+                    # concurrent request handling.  By running each indexing
+                    # task in its own thread+event-loop, blocking calls only
+                    # stall that thread while the main loop stays responsive.
+                    result = await asyncio.to_thread(
+                        self._run_indexer_sync,
+                        local_path,
+                        task_request.index_options,
+                        llm_client,
+                    )
+
+                    page_previews = await asyncio.to_thread(
+                        self._page_preview_service.generate, local_path
+                    )
+                    if page_previews:
+                        result["page_previews"] = page_previews
 
             await self._send_progress(task_request, "running", "finalizing", 90, submitted_file.original_name)
             await self._callback_client.send(
@@ -160,6 +175,25 @@ class IndexTaskService:
                 )
             except Exception:
                 return
+
+    def _run_indexer_sync(
+        self,
+        local_path: Path,
+        index_options: dict,
+        llm_client: LLMClient,
+    ) -> dict:
+        """Run the async indexer in a dedicated event loop on the current thread.
+
+        This isolates synchronous blocking calls (LLM HTTP, PDF parsing) so
+        they do not freeze the main asyncio event loop.
+        """
+        return asyncio.run(
+            self._document_indexer.index(
+                file_path=local_path,
+                index_options=index_options,
+                llm_client=llm_client,
+            )
+        )
 
     async def _send_progress(
         self,

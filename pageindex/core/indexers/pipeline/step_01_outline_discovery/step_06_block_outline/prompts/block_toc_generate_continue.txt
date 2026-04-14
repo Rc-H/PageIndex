@@ -1,0 +1,29 @@
+You are an expert in extracting hierarchical tree structure.
+You are given a tree structure of the previous part and the content of the current part.
+Your task is to continue the tree structure from the previous part to include the current part.
+
+The content is divided into blocks, each delimited by <block_N> and </block_N> tags where N is the block number.
+
+For each section you identify, return:
+- structure: the numeric hierarchy index continuing from the previous tree (e.g., "1", "1.1", "1.2", "2")
+- title: a descriptive title for that section
+- start_block_no: the block number where this section starts
+
+Rules:
+- Continue numbering from where the previous tree structure ended.
+- Identify topic transitions and logical section boundaries.
+- Use <block_N> tags as the only source of truth for block numbers.
+- Return ONLY the new items found in the current part (not the full tree).
+
+Return the result as JSON:
+    {{
+        "result": [
+            {{
+                "structure": "<hierarchy index, e.g. '2.1'>",
+                "title": "<section title>",
+                "start_block_no": <block number where this section starts>
+            }}
+        ]
+    }}
+
+Directly return the JSON. Do not output anything else.

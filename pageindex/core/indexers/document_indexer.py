@@ -37,6 +37,8 @@ class IndexingOptions:
     thinning_threshold: int
     summary_token_threshold: int
     doc_conversion_timeout_seconds: int
+    block_granularity_page_threshold: int
+    max_token_num_per_block_range: int
 
     @classmethod
     def from_raw(cls, raw_options: dict[str, Any] | None = None) -> "IndexingOptions":
@@ -117,8 +119,13 @@ class DocumentIndexer:
             return await self._word_adapter.build(context)
 
     async def _index_doc(self, path: Path, options: IndexingOptions, llm_client: LLMClient):
+        import asyncio
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            process = subprocess.run(
+            # Run synchronous subprocess in a thread pool to avoid blocking the
+            # asyncio event loop (LibreOffice conversion can take many seconds).
+            process = await asyncio.to_thread(
+                subprocess.run,
                 [
                     self._dependencies.libreoffice_command,
                     "--headless",

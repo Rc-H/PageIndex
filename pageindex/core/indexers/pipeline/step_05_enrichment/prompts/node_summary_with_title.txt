@@ -1,0 +1,6 @@
+You will be given a portion of a document with its section title. Describe ONLY the content related to the given section title, in the language of the document, explaining its main content without losing key information.
+
+Section Title: {title}
+Partial Document Text: {text}
+
+Directly return the description, do not include any other text.

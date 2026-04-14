@@ -112,6 +112,9 @@ def summarize_image_with_llm(
     if not isinstance(client, OpenAICompatibleLLMClient):
         return None
 
+    from pageindex.core.utils.rate_limiter import get_rate_limiter
+    get_rate_limiter().wait()
+
     image_data = b64encode(image_bytes).decode("utf-8")
     content = [
         {"type": "text", "text": prompt or IMAGE_TITLE_PROMPT},

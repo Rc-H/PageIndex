@@ -18,6 +18,8 @@ class ServiceSettings:
     attachment_upload_domain: str = ""
     attachment_upload_api_key: str | None = None
     page_preview_dpi: int = 144
+    max_concurrent_tasks: int = 4
+    llm_max_requests_per_minute: int = 30
 
 
 def load_service_settings() -> ServiceSettings:
@@ -34,4 +36,6 @@ def load_service_settings() -> ServiceSettings:
         attachment_upload_domain=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_DOMAIN", ""),
         attachment_upload_api_key=os.getenv("PAGEINDEX_ATTACHMENT_UPLOAD_API_KEY") or None,
         page_preview_dpi=int(os.getenv("PAGEINDEX_PAGE_PREVIEW_DPI", "144")),
+        max_concurrent_tasks=int(os.getenv("PAGEINDEX_MAX_CONCURRENT_TASKS", "4")),
+        llm_max_requests_per_minute=int(os.getenv("PAGEINDEX_LLM_MAX_REQUESTS_PER_MINUTE", "30")),
     )

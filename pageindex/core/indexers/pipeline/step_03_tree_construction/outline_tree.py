@@ -21,7 +21,7 @@ def post_processing(structure, end_physical_index):
         item["start_index"] = item.get("physical_index")
         if index < len(structure) - 1:
             if structure[index + 1].get("appear_start") == "yes":
-                item["end_index"] = structure[index + 1]["physical_index"] - 1
+                item["end_index"] = max(structure[index + 1]["physical_index"] - 1, item["start_index"])
             else:
                 item["end_index"] = structure[index + 1]["physical_index"]
         else:

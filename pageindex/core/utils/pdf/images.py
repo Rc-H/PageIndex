@@ -23,6 +23,9 @@ def _extract_image_markdown_from_pymupdf_block(
     if not image_bytes or not render_images:
         return build_empty_image_markdown()
 
+    if not _is_valid_image(image_bytes):
+        return build_empty_image_markdown()
+
     ext = _normalize_image_extension(block.get("ext"))
     content_type = content_type_for_extension(ext)
     alt_text = _generate_image_alt_text(image_bytes, content_type=content_type, model=model)
@@ -84,6 +87,18 @@ def _generate_image_alt_text(image_bytes: bytes, content_type: str, model: str |
 
 def _generate_image_description(image_bytes: bytes, content_type: str, model: str | None = None) -> str:
     return generate_image_description(image_bytes, content_type=content_type, model=model)
+
+
+def _is_valid_image(image_bytes: bytes) -> bool:
+    """Check if image bytes can be decoded by PIL before sending to LLM."""
+    try:
+        from io import BytesIO
+        from PIL import Image
+        with Image.open(BytesIO(image_bytes)) as img:
+            img.verify()
+        return True
+    except Exception:
+        return False
 
 
 # Keep _normalize_image_alt_text as a module-level alias for existing test imports

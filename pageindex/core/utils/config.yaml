@@ -10,3 +10,5 @@ if_thinning: "no"
 thinning_threshold: 5000
 summary_token_threshold: 200
 doc_conversion_timeout_seconds: 120
+block_granularity_page_threshold: 35
+max_token_num_per_block_range: 512

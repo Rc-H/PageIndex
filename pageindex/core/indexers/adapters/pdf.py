@@ -10,7 +10,8 @@ from pageindex.core.indexers.pipeline.step_02_outline_validation import (
     check_title_appearance_in_start_concurrent,
     resolve_pdf_outline,
 )
-from pageindex.core.indexers.pipeline.step_03_tree_construction import add_preface_if_needed, post_processing
+from pageindex.core.indexers.pipeline.step_01_outline_discovery.step_06_block_outline import process_block_outline
+from pageindex.core.indexers.pipeline.step_03_tree_construction import add_preface_if_needed, build_block_tree, post_processing
 from pageindex.core.indexers.pipeline.step_04_section_expansion import expand_pdf_sections
 from pageindex.core.indexers.pipeline.step_05_enrichment import (
     add_node_text,
@@ -19,14 +20,17 @@ from pageindex.core.indexers.pipeline.step_05_enrichment import (
     generate_summaries_for_structure,
     remove_structure_text,
 )
-from pageindex.core.indexers.pipeline.step_06_finalize import build_index_result
+from pageindex.core.indexers.pipeline.step_06_finalize import (
+    PAGEINDEX_NODE_ID_KEY,
+    attach_block_node_ids,
+    attach_block_node_ids_by_block_range,
+    build_index_result,
+)
 from pageindex.core.utils.logger import get_logger
 from pageindex.core.utils.pdf_reader import extract_pdf_blocks, get_page_tokens, get_pdf_name
 from pageindex.core.utils.pdf import _extract_tables_by_page
 from pageindex.core.utils.tree import write_node_id
 from pageindex.infrastructure.settings import load_settings
-
-PAGEINDEX_NODE_ID_KEY = "pageindex_node_id"
 
 
 async def _build_pdf_tree(page_list, opt, logger=None):
@@ -70,10 +74,49 @@ async def _build_pdf_tree(page_list, opt, logger=None):
 class PdfAdapter:
     async def build(self, context: PipelineContext):
         logger, page_list = _initialize_pdf_context(context)
+
+        if _should_use_block_granularity(context.options, page_list):
+            return await self._build_block_granularity(context, page_list, logger)
+        return await self._build_page_granularity(context, page_list, logger)
+
+    async def _build_page_granularity(self, context, page_list, logger):
+        """Original page-level flow for large documents."""
         structure = await _build_pdf_structure(context, page_list, logger)
         blocks = _build_pdf_blocks(context, structure)
+        # context.blocks stays None — page-granularity uses page ranges for text
         await _enrich_pdf_structure(context, structure, page_list)
         doc_description = await _build_pdf_doc_description(context, structure, page_list)
+        return _build_pdf_result(context, structure, blocks, doc_description, page_list)
+
+    async def _build_block_granularity(self, context, page_list, logger):
+        """Block-level flow for small/medium documents (Word-style)."""
+        # 1. Extract blocks first (before outline)
+        blocks = extract_pdf_blocks(
+            context.source_path,
+            model=context.model,
+            tables_by_page=context.pdf_tables_by_page,
+        )
+        if logger:
+            logger.info({"block_granularity": True, "total_blocks": len(blocks)})
+
+        # 2. Generate outline from block-annotated text (like Word heading extraction)
+        outline_items = process_block_outline(blocks, model=context.model, logger=logger)
+
+        # 3. Build tree from outline (like Word's build_tree_from_nodes)
+        structure = build_block_tree(outline_items, blocks)
+
+        # 4. Assign node IDs
+        if context.options.if_add_node_id == "yes":
+            write_node_id(structure)
+
+        # 5. Attach block-to-node mapping (like Word's section_to_node_id)
+        attach_block_node_ids_by_block_range(blocks, structure)
+
+        # 6. Enrich with summaries (using block-level text)
+        context.blocks = blocks
+        await _enrich_pdf_structure(context, structure, page_list)
+        doc_description = await _build_pdf_doc_description(context, structure, page_list)
+
         return _build_pdf_result(context, structure, blocks, doc_description, page_list)
 
 
@@ -109,16 +152,17 @@ def _build_pdf_blocks(context: PipelineContext, structure):
         model=context.model,
         tables_by_page=context.pdf_tables_by_page,
     )
-    _attach_block_node_ids(blocks, structure)
+    attach_block_node_ids(blocks, structure)
     return blocks
 
 
 async def _enrich_pdf_structure(context: PipelineContext, structure, page_list):
+    blocks = context.blocks
     if context.options.if_add_node_text == "yes":
-        add_node_text(structure, page_list)
+        add_node_text(structure, page_list, blocks=blocks)
     if context.options.if_add_node_summary == "yes":
         if context.options.if_add_node_text == "no":
-            add_node_text(structure, page_list)
+            add_node_text(structure, page_list, blocks=blocks)
         await generate_summaries_for_structure(structure, model=context.model)
         if context.options.if_add_node_text == "no":
             remove_structure_text(structure)
@@ -128,9 +172,10 @@ async def _build_pdf_doc_description(context: PipelineContext, structure, page_l
     if context.options.if_add_doc_description != "yes":
         return None
 
+    blocks = context.blocks
     if context.options.if_add_node_summary == "no":
         if context.options.if_add_node_text == "no":
-            add_node_text(structure, page_list)
+            add_node_text(structure, page_list, blocks=blocks)
         await generate_summaries_for_structure(structure, model=context.model)
         if context.options.if_add_node_text == "no":
             remove_structure_text(structure)
@@ -173,26 +218,9 @@ def _build_content_images(blocks):
     return content_images
 
 
-def _attach_block_node_ids(blocks, structure):
-    for block in blocks:
-        node_id = _find_deepest_covering_node_id(structure, block["page_no"])
-        if node_id:
-            block[PAGEINDEX_NODE_ID_KEY] = node_id
-
-
-def _find_deepest_covering_node_id(nodes, page_no):
-    best_match = None
-    for node in nodes:
-        start_index = node.get("start_index")
-        end_index = node.get("end_index")
-        if start_index is None or end_index is None or page_no < start_index or page_no > end_index:
-            continue
-
-        child_match = _find_deepest_covering_node_id(node.get("nodes", []), page_no)
-        if child_match:
-            return child_match
-        best_match = node.get("node_id")
-    return best_match
+def _should_use_block_granularity(options, page_list):
+    threshold = options.block_granularity_page_threshold
+    return threshold > 0 and len(page_list) <= threshold
 
 
 def page_index_main(doc, opt=None):
