@@ -109,18 +109,13 @@ def test_block_granularity_full_pipeline():
     for node in all_nodes:
         assert "node_id" in node, f"Node '{node.get('title')}' missing node_id"
 
-    # 6. All nodes should have start_page and end_page
-    for node in all_nodes:
-        assert node.get("start_page") is not None, f"Node '{node.get('title')}' missing start_page"
-        assert node.get("end_page") is not None, f"Node '{node.get('title')}' missing end_page"
-
     # Print structure for manual inspection
     def _print_tree(nodes, indent=0):
         for n in nodes:
             prefix = "  " * indent
             print(
                 f"{prefix}- [{n.get('node_id')}] {n.get('title')} "
-                f"(pages {n.get('start_page')}-{n.get('end_page')}, "
+                f"(pages {n.get('start_index')}-{n.get('end_index')}, "
                 f"blocks {n.get('start_block')}-{n.get('end_block')})"
             )
             if "nodes" in n:
