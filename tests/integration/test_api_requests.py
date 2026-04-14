@@ -56,10 +56,11 @@ def test_multipart_single_file_returns_accepted_and_emits_callbacks():
             files=SAMPLE_FILE,
         )
 
-    assert response.status_code == 202
-    assert response.json() == {"task_id": "task-1", "status": "accepted"}
+        assert response.status_code == 202
+        assert response.json() == {"task_id": "task-1", "status": "accepted"}
 
-    _wait_for_events(callback_client, 4)
+        _wait_for_events(callback_client, 4)
+
     assert [event["status"] for event in callback_client.events] == [
         "accepted",
         "running",
@@ -85,9 +86,10 @@ def test_remote_url_submission_returns_accepted_and_emits_callbacks():
             },
         )
 
-    assert response.status_code == 202
+        assert response.status_code == 202
 
-    _wait_for_events(callback_client, 4)
+        _wait_for_events(callback_client, 5)
+
     assert callback_client.events[1]["stage"] == "fetching"
     assert callback_client.events[-1]["status"] == "completed"
 
@@ -105,9 +107,10 @@ def test_failed_indexing_emits_failed_callback():
             files=SAMPLE_FILE,
         )
 
-    assert response.status_code == 202
+        assert response.status_code == 202
 
-    _wait_for_events(callback_client, 3)
+        _wait_for_events(callback_client, 3)
+
     assert callback_client.events[-1]["status"] == "failed"
     assert callback_client.events[-1]["error_message"] == "index failed"
 

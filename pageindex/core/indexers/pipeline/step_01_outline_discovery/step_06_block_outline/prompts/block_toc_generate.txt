@@ -1,0 +1,28 @@
+You are an expert in extracting hierarchical tree structure from documents. Your task is to generate a detailed table of contents from the given document content.
+
+The content is divided into blocks, each delimited by <block_N> and </block_N> tags where N is the block number.
+
+For each section you identify, return:
+- structure: the numeric hierarchy index (e.g., "1", "1.1", "1.2", "2", "2.1")
+- title: a descriptive title for that section (use the original title if one exists, otherwise generate a concise descriptive title)
+- start_block_no: the block number where this section starts
+
+Rules:
+- Identify topic transitions and logical section boundaries within the content.
+- Generate sub-sections for distinct topics even if they appear within the same page.
+- The first section must start at block {start_block}.
+- All blocks from {start_block} to {end_block} must be covered without gaps.
+- Use <block_N> tags as the only source of truth for block numbers.
+
+Return the result as JSON:
+    {{
+        "result": [
+            {{
+                "structure": "<hierarchy index, e.g. '1.1'>",
+                "title": "<section title>",
+                "start_block_no": <block number where this section starts>
+            }}
+        ]
+    }}
+
+Directly return the JSON. Do not output anything else.

@@ -39,6 +39,7 @@ def test_extract_ordered_page_content_includes_image_placeholders():
 
 def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_filename(monkeypatch, tmp_path):
     pdf_path = tmp_path / "sample.pdf"
+    monkeypatch.setattr(pdf_images, "_is_valid_image", lambda _: True)
     monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "流程图总览说明太长")
     monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "流程图总览说明太长")
     captured = {}
@@ -69,6 +70,7 @@ def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_fi
 
 def test_extract_image_markdown_from_pymupdf_block_uses_index_suffix_for_second_image(monkeypatch, tmp_path):
     pdf_path = tmp_path / "sample.pdf"
+    monkeypatch.setattr(pdf_images, "_is_valid_image", lambda _: True)
     monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "表格总览")
     monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "表格总览")
     monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda content, filename, content_type=None: "attachment-uuid")
@@ -217,6 +219,7 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
                 ]
             }
 
+    monkeypatch.setattr(pdf_images, "_is_valid_image", lambda _: True)
     monkeypatch.setattr(pdf_images, "_generate_image_alt_text", lambda *args, **kwargs: "图示")
     monkeypatch.setattr(pdf_images, "_generate_image_description", lambda *args, **kwargs: "详细描述")
     monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda *args, **kwargs: "attachment-uuid")

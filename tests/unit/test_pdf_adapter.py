@@ -84,6 +84,7 @@ def test_pdf_adapter_build_includes_extract_blocks_stats_and_node_mapping(monkey
                 "if_add_node_summary": "no",
                 "if_add_doc_description": "no",
                 "if_add_node_text": "no",
+                "block_granularity_page_threshold": 0,
             }
         ),
         llm_client=None,
@@ -121,6 +122,7 @@ def test_attach_block_node_ids_prefers_deepest_covering_node():
         }
     ]
 
-    pdf_adapter._attach_block_node_ids(blocks, structure)
+    from pageindex.core.indexers.pipeline.step_06_finalize import attach_block_node_ids
+    attach_block_node_ids(blocks, structure)
 
     assert [block.get("pageindex_node_id") for block in blocks] == ["0001", "0002", "0002"]

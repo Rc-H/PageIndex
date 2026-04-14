@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 
+from pageindex.core.utils.rate_limiter import get_rate_limiter
 from pageindex.infrastructure.llm import get_active_llm_client
 from pageindex.infrastructure.settings import resolve_model_name
 
@@ -30,6 +31,7 @@ def _log_response(caller: str, model: str, response: str, elapsed: float, finish
 def call_llm(model, prompt, chat_history=None, json_response=False):
     resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
+        get_rate_limiter().wait()
         _log_request("call_llm", resolved_model, prompt, i, json_response)
         try:
             start = time.monotonic()
@@ -50,6 +52,7 @@ def call_llm(model, prompt, chat_history=None, json_response=False):
 def call_llm_with_finish_reason(model, prompt, chat_history=None, json_response=False):
     resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
+        get_rate_limiter().wait()
         _log_request("call_llm_with_finish_reason", resolved_model, prompt, i, json_response)
         try:
             start = time.monotonic()
@@ -64,12 +67,13 @@ def call_llm_with_finish_reason(model, prompt, chat_history=None, json_response=
                 time.sleep(1)
             else:
                 logger.error("[LLM:call_llm_with_finish_reason] max retries reached, prompt_len=%d", len(prompt))
-                return "Error"
+                return "Error", "max_retries"
 
 
 async def call_llm_async(model, prompt, chat_history=None, json_response=False):
     resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
+        await get_rate_limiter().wait_async()
         _log_request("call_llm_async", resolved_model, prompt, i, json_response)
         try:
             start = time.monotonic()

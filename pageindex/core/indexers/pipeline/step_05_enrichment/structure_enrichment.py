@@ -9,16 +9,28 @@ from pageindex.core.utils.token_counter import count_tokens
 from pageindex.core.utils.tree import structure_to_list
 
 
-def add_node_text(node, pdf_pages):
+def add_node_text(node, pdf_pages, blocks=None):
     if isinstance(node, dict):
-        start_page = node.get("start_index")
-        end_page = node.get("end_index")
-        node["text"] = get_text_of_pdf_pages(pdf_pages, start_page, end_page)
+        sb = node.get("start_block")
+        eb = node.get("end_block")
+        if blocks is not None and sb is not None and eb is not None:
+            node["text"] = _get_text_from_blocks(blocks, sb, eb)
+        else:
+            start_page = node.get("start_index")
+            end_page = node.get("end_index")
+            node["text"] = get_text_of_pdf_pages(pdf_pages, start_page, end_page)
         if "nodes" in node:
-            add_node_text(node["nodes"], pdf_pages)
+            add_node_text(node["nodes"], pdf_pages, blocks=blocks)
     elif isinstance(node, list):
         for item in node:
-            add_node_text(item, pdf_pages)
+            add_node_text(item, pdf_pages, blocks=blocks)
+
+
+def _get_text_from_blocks(blocks, start_block, end_block):
+    return "\n".join(
+        b["normalized_text"] for b in blocks
+        if start_block <= b["block_no"] <= end_block
+    )
 
 
 def remove_structure_text(data):
@@ -33,7 +45,15 @@ def remove_structure_text(data):
 
 
 async def generate_node_summary(node, model: str | None = None):
-    prompt = load_prompt("step_05_enrichment/prompts/node_summary.txt", text=node["text"])
+    title = node.get("title", "")
+    if title:
+        prompt = load_prompt(
+            "step_05_enrichment/prompts/node_summary_with_title.txt",
+            title=title,
+            text=node["text"],
+        )
+    else:
+        prompt = load_prompt("step_05_enrichment/prompts/node_summary.txt", text=node["text"])
     return await call_llm_async(model, prompt)
 
 

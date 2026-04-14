@@ -107,6 +107,10 @@ def list_to_tree(data):
             'end_index': item.get('end_index'),
             'nodes': []
         }
+        if 'start_block' in item:
+            node['start_block'] = item['start_block']
+        if 'end_block' in item:
+            node['end_block'] = item['end_block']
         nodes[structure] = node
 
         parent_structure = get_parent_structure(structure)
