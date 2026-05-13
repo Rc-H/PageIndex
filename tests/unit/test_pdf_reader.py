@@ -1,8 +1,12 @@
 import pytest
 
 from pageindex.core.utils import image_upload, pdf_reader
+from pageindex.core.utils.image_constants import MIN_IMAGE_BYTES
 from pageindex.core.utils.pdf import images as pdf_images
 from pageindex.core.utils.pdf import tables as pdf_tables
+
+
+_LARGE_IMAGE_BYTES = b"x" * (MIN_IMAGE_BYTES + 1)
 
 
 def test_get_page_tokens_requires_pypdf2(monkeypatch):
@@ -52,7 +56,7 @@ def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_fi
     )
 
     markdown = pdf_reader._extract_image_markdown_from_pymupdf_block(
-        {"image": b"png-data", "ext": "png"},
+        {"image": _LARGE_IMAGE_BYTES, "ext": "png"},
         pdf_path=pdf_path,
         page_no=16,
         image_index=1,
@@ -62,7 +66,7 @@ def test_extract_image_markdown_from_pymupdf_block_uploads_and_keeps_original_fi
 
     assert markdown == "![流程图总览说明太长](sample.pdf-page-16.png)\n[图片内容：流程图总览说明太长]"
     assert captured == {
-        "content": b"png-data",
+        "content": _LARGE_IMAGE_BYTES,
         "filename": "sample.pdf-page-16.png",
         "content_type": "image/png",
     }
@@ -76,7 +80,7 @@ def test_extract_image_markdown_from_pymupdf_block_uses_index_suffix_for_second_
     monkeypatch.setattr(pdf_images, "upload_attachment_bytes", lambda content, filename, content_type=None: "attachment-uuid")
 
     markdown = pdf_reader._extract_image_markdown_from_pymupdf_block(
-        {"image": b"png-data", "ext": "png"},
+        {"image": _LARGE_IMAGE_BYTES, "ext": "png"},
         pdf_path=pdf_path,
         page_no=16,
         image_index=2,
@@ -214,7 +218,7 @@ def test_extract_page_blocks_includes_tables_and_skips_overlapping_text(monkeypa
             return {
                 "blocks": [
                     {"type": 0, "bbox": [0, 12, 100, 48], "lines": [{"spans": [{"text": "Inside table"}]}]},
-                    {"type": 1, "bbox": [0, 60, 100, 80], "image": b"png", "ext": "png"},
+                    {"type": 1, "bbox": [0, 60, 100, 80], "image": _LARGE_IMAGE_BYTES, "ext": "png"},
                     {"type": 0, "bbox": [0, 90, 100, 110], "lines": [{"spans": [{"text": "After"}]}]},
                 ]
             }
@@ -276,7 +280,7 @@ def test_header_marked_tables_suppress_overlapping_text_and_images(monkeypatch):
             return {
                 "blocks": [
                     # Logo image inside header area
-                    {"type": 1, "bbox": [0, 5, 100, 25], "image": b"png", "ext": "png"},
+                    {"type": 1, "bbox": [0, 5, 100, 25], "image": _LARGE_IMAGE_BYTES, "ext": "png"},
                     # Text inside header area: "文件编号"
                     {"type": 0, "bbox": [10, 10, 200, 45], "lines": [{"spans": [{"text": "文件编号 GETO-HR-003"}]}]},
                     # Real content after header

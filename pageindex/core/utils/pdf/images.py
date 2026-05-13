@@ -5,6 +5,7 @@ from pageindex.core.utils.image_upload import (
     build_markdown_image,
     generate_image_alt_text,
     generate_image_description,
+    is_image_too_small,
     normalize_image_alt_text,
     upload_attachment_bytes,
 )
@@ -24,6 +25,9 @@ def _extract_image_markdown_from_pymupdf_block(
         return build_empty_image_markdown()
 
     if not _is_valid_image(image_bytes):
+        return build_empty_image_markdown()
+
+    if is_image_too_small(image_bytes):
         return build_empty_image_markdown()
 
     ext = _normalize_image_extension(block.get("ext"))

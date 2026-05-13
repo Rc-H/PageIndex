@@ -15,6 +15,7 @@ from pageindex.core.utils.image_constants import (
     IMAGE_TITLE_PROMPT,
     MAX_IMAGE_DESCRIPTION_LENGTH,
     MAX_IMAGE_TITLE_LENGTH,
+    MIN_IMAGE_BYTES,
 )
 from pageindex.infrastructure.llm import OpenAICompatibleLLMClient, get_active_llm_client
 from pageindex.infrastructure.settings import load_settings, resolve_model_name
@@ -76,6 +77,10 @@ def upload_attachment_bytes(content: bytes, filename: str, content_type: str | N
     return str(uuid)
 
 
+def is_image_too_small(content: bytes | None) -> bool:
+    return not content or len(content) < MIN_IMAGE_BYTES
+
+
 def upload_image_bytes(
     content: bytes,
     filename: str,
@@ -83,6 +88,13 @@ def upload_image_bytes(
     alt_text: str = "image",
     model: str | None = None,
 ) -> str | None:
+    if is_image_too_small(content):
+        logger.info(
+            "[image-upload] skipping tiny image filename=%s size=%d threshold=%d",
+            filename, len(content or b""), MIN_IMAGE_BYTES,
+        )
+        return None
+
     attachment_id = upload_attachment_bytes(content, filename, content_type)
     if not attachment_id:
         return None
@@ -123,7 +135,8 @@ def summarize_image_with_llm(
 
     try:
         return client.generate_text_from_content(model=resolve_model_name(model), content=content)
-    except Exception:
+    except Exception as exc:
+        logger.info("[image-llm] skipping image summary: %s", exc)
         return None
 
 
