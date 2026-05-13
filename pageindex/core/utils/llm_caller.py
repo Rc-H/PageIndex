@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 
+from pageindex.core.utils.llm_retry import extract_status_code, is_retryable_llm_error
 from pageindex.core.utils.rate_limiter import get_rate_limiter
 from pageindex.infrastructure.llm import get_active_llm_client
 from pageindex.infrastructure.settings import resolve_model_name
@@ -9,7 +10,7 @@ from pageindex.infrastructure.settings import resolve_model_name
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 10
+MAX_RETRIES = 6
 _PROMPT_PREVIEW_LENGTH = 300
 
 
@@ -28,6 +29,13 @@ def _log_response(caller: str, model: str, response: str, elapsed: float, finish
     )
 
 
+def _log_non_retryable(caller: str, attempt: int, exc: BaseException) -> None:
+    logger.error(
+        "[LLM:%s] non_retryable=true attempt=%d status=%s error=%s",
+        caller, attempt + 1, extract_status_code(exc), exc,
+    )
+
+
 def call_llm(model, prompt, chat_history=None, json_response=False):
     resolved_model = resolve_model_name(model)
     for i in range(MAX_RETRIES):
@@ -41,6 +49,9 @@ def call_llm(model, prompt, chat_history=None, json_response=False):
             _log_response("call_llm", resolved_model, result, time.monotonic() - start)
             return result
         except Exception as e:
+            if not is_retryable_llm_error(e):
+                _log_non_retryable("call_llm", i, e)
+                return "Error"
             logger.error("[LLM:call_llm] error attempt=%d: %s", i + 1, e)
             if i < MAX_RETRIES - 1:
                 time.sleep(1)
@@ -62,6 +73,9 @@ def call_llm_with_finish_reason(model, prompt, chat_history=None, json_response=
             _log_response("call_llm_with_finish_reason", resolved_model, result, time.monotonic() - start, finish_reason)
             return result, finish_reason
         except Exception as e:
+            if not is_retryable_llm_error(e):
+                _log_non_retryable("call_llm_with_finish_reason", i, e)
+                return "Error", "non_retryable"
             logger.error("[LLM:call_llm_with_finish_reason] error attempt=%d: %s", i + 1, e)
             if i < MAX_RETRIES - 1:
                 time.sleep(1)
@@ -83,6 +97,9 @@ async def call_llm_async(model, prompt, chat_history=None, json_response=False):
             _log_response("call_llm_async", resolved_model, result, time.monotonic() - start)
             return result
         except Exception as e:
+            if not is_retryable_llm_error(e):
+                _log_non_retryable("call_llm_async", i, e)
+                return "Error"
             logger.error("[LLM:call_llm_async] error attempt=%d: %s", i + 1, e)
             if i < MAX_RETRIES - 1:
                 await asyncio.sleep(1)
